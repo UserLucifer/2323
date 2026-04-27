@@ -7,7 +7,7 @@ CREATE TABLE `app_user` (
   `id`                BIGINT NOT NULL AUTO_INCREMENT COMMENT '主键ID',
   `user_id`           VARCHAR(64) NOT NULL COMMENT '用户编号，业务唯一标识',
   `email`             VARCHAR(128) NOT NULL COMMENT '邮箱，唯一',
-  `password_hash`     VARCHAR(255) DEFAULT NULL COMMENT '登录密码哈希，当前版本保留不使用',
+  `password_hash`     VARCHAR(255) DEFAULT NULL COMMENT '登录密码哈希',
   `nickname`          VARCHAR(64) DEFAULT NULL COMMENT '用户昵称',
   `status`            TINYINT NOT NULL DEFAULT 1 COMMENT '状态：1-正常，0-禁用',
   `email_verified_at` DATETIME DEFAULT NULL COMMENT '邮箱验证时间',
@@ -23,7 +23,7 @@ CREATE TABLE `app_user` (
 CREATE TABLE `email_verify_code` (
   `id`         BIGINT NOT NULL AUTO_INCREMENT COMMENT '主键ID',
   `email`      VARCHAR(128) NOT NULL COMMENT '邮箱',
-  `scene`      VARCHAR(32) NOT NULL DEFAULT 'LOGIN' COMMENT '场景：LOGIN-登录/注册（当前版本），RESET_PASSWORD-重置密码（暂不启用）',
+  `scene`      VARCHAR(32) NOT NULL DEFAULT 'SIGNUP' COMMENT '场景：SIGNUP-注册，RESET_PASSWORD-重置密码',
   `code_hash`  VARCHAR(255) NOT NULL COMMENT '验证码哈希',
   `send_ip`    VARCHAR(64) DEFAULT NULL COMMENT '发送IP',
   `expire_at`  DATETIME NOT NULL COMMENT '过期时间',

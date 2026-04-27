@@ -10,7 +10,10 @@ import com.compute.rental.common.util.DateTimeUtils;
 import com.compute.rental.common.util.MoneyUtils;
 import com.compute.rental.modules.auth.dto.LoginRequest;
 import com.compute.rental.modules.auth.dto.LoginResponse;
+import com.compute.rental.modules.auth.dto.ResetPasswordRequest;
 import com.compute.rental.modules.auth.dto.SendEmailCodeRequest;
+import com.compute.rental.modules.auth.dto.SignupRequest;
+import com.compute.rental.modules.auth.dto.VerifyEmailCodeRequest;
 import com.compute.rental.modules.auth.support.AuthProperties;
 import com.compute.rental.modules.auth.support.VerificationCodeGenerator;
 import com.compute.rental.modules.auth.support.VerificationCodeHasher;
@@ -25,12 +28,12 @@ import com.compute.rental.modules.user.mapper.UserTeamRelationMapper;
 import com.compute.rental.modules.wallet.entity.UserWallet;
 import com.compute.rental.modules.wallet.mapper.UserWalletMapper;
 import com.compute.rental.security.jwt.JwtTokenProvider;
-import java.math.BigDecimal;
 import java.time.Duration;
 import java.util.Locale;
 import java.util.UUID;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -53,6 +56,7 @@ public class AuthService {
     private final UserReferralRelationMapper userReferralRelationMapper;
     private final UserTeamRelationMapper userTeamRelationMapper;
     private final JwtTokenProvider jwtTokenProvider;
+    private final PasswordEncoder passwordEncoder;
 
     public AuthService(
             AuthProperties authProperties,
@@ -65,7 +69,8 @@ public class AuthService {
             UserWalletMapper userWalletMapper,
             UserReferralRelationMapper userReferralRelationMapper,
             UserTeamRelationMapper userTeamRelationMapper,
-            JwtTokenProvider jwtTokenProvider
+            JwtTokenProvider jwtTokenProvider,
+            PasswordEncoder passwordEncoder
     ) {
         this.authProperties = authProperties;
         this.codeGenerator = codeGenerator;
@@ -78,45 +83,92 @@ public class AuthService {
         this.userReferralRelationMapper = userReferralRelationMapper;
         this.userTeamRelationMapper = userTeamRelationMapper;
         this.jwtTokenProvider = jwtTokenProvider;
+        this.passwordEncoder = passwordEncoder;
     }
 
-    public void sendEmailCode(SendEmailCodeRequest request, String sendIp) {
+    public void sendSignupEmailCode(SendEmailCodeRequest request, String sendIp) {
         var email = codeHasher.normalizeEmail(request.email());
-        enforceEmailCodeRateLimit(email);
-        var scene = EmailVerifyScene.LOGIN.name();
-        var code = codeGenerator.generate(authProperties.codeLength());
-        var now = DateTimeUtils.now();
+        if (findUserByEmail(email) != null) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST, "Email is already registered");
+        }
+        var code = createEmailCode(email, EmailVerifyScene.SIGNUP, sendIp);
+        emailService.sendSignupCode(email, code);
+    }
 
-        var verifyCode = new EmailVerifyCode();
-        verifyCode.setEmail(email);
-        verifyCode.setScene(scene);
-        verifyCode.setCodeHash(codeHasher.hash(email, scene, code));
-        verifyCode.setSendIp(sendIp);
-        verifyCode.setExpireAt(now.plus(authProperties.codeTtl()));
-        verifyCode.setStatus(EmailVerifyStatus.UNUSED.value());
-        verifyCode.setCreatedAt(now);
-        emailVerifyCodeMapper.insert(verifyCode);
+    public void verifySignupEmailCode(VerifyEmailCodeRequest request) {
+        var email = codeHasher.normalizeEmail(request.email());
+        if (findUserByEmail(email) != null) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST, "Email is already registered");
+        }
+        verifyEmailCode(email, request.code(), EmailVerifyScene.SIGNUP, false);
+    }
 
-        emailService.sendLoginCode(email, code);
+    public void sendResetPasswordEmailCode(SendEmailCodeRequest request, String sendIp) {
+        var email = codeHasher.normalizeEmail(request.email());
+        requireEnabledUserByEmail(email);
+        var code = createEmailCode(email, EmailVerifyScene.RESET_PASSWORD, sendIp);
+        emailService.sendResetPasswordCode(email, code);
+    }
+
+    public void verifyResetPasswordEmailCode(VerifyEmailCodeRequest request) {
+        var email = codeHasher.normalizeEmail(request.email());
+        requireEnabledUserByEmail(email);
+        verifyEmailCode(email, request.code(), EmailVerifyScene.RESET_PASSWORD, false);
     }
 
     @Transactional
     public LoginResponse login(LoginRequest request) {
         var email = codeHasher.normalizeEmail(request.email());
-        verifyLoginCode(email, request.code());
         var user = findUserByEmail(email);
         if (user == null) {
-            user = registerUser(email, normalizeInviteCode(request.inviteCode()));
+            throw new BusinessException(ErrorCode.UNAUTHORIZED, "Invalid email or password");
         }
         if (!Integer.valueOf(CommonStatus.ENABLED.value()).equals(user.getStatus())) {
             throw new BusinessException(ErrorCode.FORBIDDEN, "User is disabled");
         }
+        if (!StringUtils.hasText(user.getPasswordHash())
+                || !passwordEncoder.matches(request.password(), user.getPasswordHash())) {
+            throw new BusinessException(ErrorCode.UNAUTHORIZED, "Invalid email or password");
+        }
 
         var now = DateTimeUtils.now();
-        user.setEmailVerifiedAt(now);
         user.setLastLoginAt(now);
+        user.setUpdatedAt(now);
         appUserMapper.updateById(user);
 
+        return buildLoginResponse(user);
+    }
+
+    @Transactional
+    public LoginResponse signup(SignupRequest request) {
+        var email = codeHasher.normalizeEmail(request.email());
+        if (findUserByEmail(email) != null) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST, "Email is already registered");
+        }
+        verifyEmailCode(email, request.code(), EmailVerifyScene.SIGNUP, true);
+        var user = registerUser(
+                email,
+                normalizeUsername(request.username()),
+                passwordEncoder.encode(request.password()),
+                normalizeInviteCode(request.inviteCode())
+        );
+        user.setLastLoginAt(DateTimeUtils.now());
+        appUserMapper.updateById(user);
+        return buildLoginResponse(user);
+    }
+
+    @Transactional
+    public void resetPassword(ResetPasswordRequest request) {
+        var email = codeHasher.normalizeEmail(request.email());
+        var user = requireEnabledUserByEmail(email);
+        verifyEmailCode(email, request.code(), EmailVerifyScene.RESET_PASSWORD, true);
+        var now = DateTimeUtils.now();
+        user.setPasswordHash(passwordEncoder.encode(request.newPassword()));
+        user.setUpdatedAt(now);
+        appUserMapper.updateById(user);
+    }
+
+    private LoginResponse buildLoginResponse(AppUser user) {
         var token = jwtTokenProvider.createAccessToken(user.getId(), user.getUserId(), LOGIN_ROLE);
         return new LoginResponse(
                 token,
@@ -125,8 +177,25 @@ public class AuthService {
         );
     }
 
-    private void enforceEmailCodeRateLimit(String email) {
-        var key = RATE_LIMIT_KEY_PREFIX + email + ":" + EmailVerifyScene.LOGIN.name();
+    private String createEmailCode(String email, EmailVerifyScene scene, String sendIp) {
+        enforceEmailCodeRateLimit(email, scene);
+        var code = codeGenerator.generate(authProperties.codeLength());
+        var now = DateTimeUtils.now();
+
+        var verifyCode = new EmailVerifyCode();
+        verifyCode.setEmail(email);
+        verifyCode.setScene(scene.name());
+        verifyCode.setCodeHash(codeHasher.hash(email, scene.name(), code));
+        verifyCode.setSendIp(sendIp);
+        verifyCode.setExpireAt(now.plus(authProperties.codeTtl()));
+        verifyCode.setStatus(EmailVerifyStatus.UNUSED.value());
+        verifyCode.setCreatedAt(now);
+        emailVerifyCodeMapper.insert(verifyCode);
+        return code;
+    }
+
+    private void enforceEmailCodeRateLimit(String email, EmailVerifyScene scene) {
+        var key = RATE_LIMIT_KEY_PREFIX + email + ":" + scene.name();
         var count = redisTemplate.opsForValue().increment(key);
         if (count != null && count == 1L) {
             redisTemplate.expire(key, Duration.ofSeconds(60));
@@ -136,11 +205,11 @@ public class AuthService {
         }
     }
 
-    private void verifyLoginCode(String email, String rawCode) {
+    private void verifyEmailCode(String email, String rawCode, EmailVerifyScene scene, boolean consume) {
         var now = DateTimeUtils.now();
         var code = emailVerifyCodeMapper.selectOne(new LambdaQueryWrapper<EmailVerifyCode>()
                 .eq(EmailVerifyCode::getEmail, email)
-                .eq(EmailVerifyCode::getScene, EmailVerifyScene.LOGIN.name())
+                .eq(EmailVerifyCode::getScene, scene.name())
                 .eq(EmailVerifyCode::getStatus, EmailVerifyStatus.UNUSED.value())
                 .ge(EmailVerifyCode::getExpireAt, now)
                 .orderByDesc(EmailVerifyCode::getId)
@@ -148,23 +217,29 @@ public class AuthService {
         if (code == null) {
             throw new BusinessException(ErrorCode.BAD_REQUEST, "Invalid or expired email code");
         }
-        var expectedHash = codeHasher.hash(email, EmailVerifyScene.LOGIN.name(), rawCode);
+        var expectedHash = codeHasher.hash(email, scene.name(), rawCode);
         if (!expectedHash.equals(code.getCodeHash())) {
             throw new BusinessException(ErrorCode.BAD_REQUEST, "Invalid or expired email code");
+        }
+        if (!consume) {
+            return;
         }
         code.setStatus(EmailVerifyStatus.USED.value());
         code.setUsedAt(now);
         emailVerifyCodeMapper.updateById(code);
     }
 
-    private AppUser registerUser(String email, String inviteCode) {
+    private AppUser registerUser(String email, String username, String passwordHash, String inviteCode) {
         var now = DateTimeUtils.now();
         var parentReferral = findParentReferral(inviteCode);
 
         var user = new AppUser();
         user.setUserId(generateUserNo());
         user.setEmail(email);
+        user.setPasswordHash(passwordHash);
+        user.setNickname(username);
         user.setStatus(CommonStatus.ENABLED.value());
+        user.setEmailVerifiedAt(now);
         user.setCreatedAt(now);
         user.setUpdatedAt(now);
         appUserMapper.insert(user);
@@ -257,8 +332,28 @@ public class AuthService {
         return appUserMapper.selectOne(new LambdaQueryWrapper<AppUser>().eq(AppUser::getEmail, email));
     }
 
+    private AppUser requireUserByEmail(String email) {
+        var user = findUserByEmail(email);
+        if (user == null) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST, "Email is not registered");
+        }
+        return user;
+    }
+
+    private AppUser requireEnabledUserByEmail(String email) {
+        var user = requireUserByEmail(email);
+        if (!Integer.valueOf(CommonStatus.ENABLED.value()).equals(user.getStatus())) {
+            throw new BusinessException(ErrorCode.FORBIDDEN, "User is disabled");
+        }
+        return user;
+    }
+
     private String normalizeInviteCode(String inviteCode) {
         return StringUtils.hasText(inviteCode) ? inviteCode.trim().toUpperCase(Locale.ROOT) : null;
+    }
+
+    private String normalizeUsername(String username) {
+        return username.trim();
     }
 
     private String generateUserNo() {

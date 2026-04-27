@@ -18,7 +18,16 @@ public class LoggingEmailService implements EmailService {
     }
 
     @Override
-    public void sendLoginCode(String email, String code) {
+    public void sendSignupCode(String email, String code) {
+        sendCode(email, code, "Your signup verification code is: %s");
+    }
+
+    @Override
+    public void sendResetPasswordCode(String email, String code) {
+        sendCode(email, code, "Your password reset verification code is: %s");
+    }
+
+    private void sendCode(String email, String code, String title) {
         var message = new SimpleMailMessage();
         if (StringUtils.hasText(authProperties.from())) {
             message.setFrom(authProperties.from());
@@ -26,10 +35,10 @@ public class LoggingEmailService implements EmailService {
         message.setTo(email);
         message.setSubject(authProperties.subject());
         message.setText("""
-                Your login verification code is: %s
+                %s
 
                 This code expires in %d minutes. If you did not request this code, please ignore this email.
-                """.formatted(code, authProperties.codeTtl().toMinutes()));
+                """.formatted(title.formatted(code), authProperties.codeTtl().toMinutes()));
         mailSender.send(message);
     }
 }

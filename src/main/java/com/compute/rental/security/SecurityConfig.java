@@ -13,6 +13,7 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import org.springframework.security.web.util.matcher.AntPathRequestMatcher;
 
 @Configuration
 @EnableWebSecurity
@@ -43,7 +44,7 @@ public class SecurityConfig {
                         .authenticationEntryPoint((request, response, ex) -> writeSecurityError(response, 401, "Unauthorized"))
                         .accessDeniedHandler((request, response, ex) -> writeSecurityError(response, 403, "Forbidden")))
                 .authorizeHttpRequests(authorize -> authorize
-                        .requestMatchers(PUBLIC_ENDPOINTS).permitAll()
+                        .requestMatchers(publicEndpointMatchers()).permitAll()
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                         .requestMatchers("/api/admin/**").hasRole("ADMIN")
                         .anyRequest().hasRole("USER")
@@ -55,6 +56,14 @@ public class SecurityConfig {
     @Bean
     public PasswordEncoder passwordEncoder() {
         return new BCryptPasswordEncoder();
+    }
+
+    private AntPathRequestMatcher[] publicEndpointMatchers() {
+        var matchers = new AntPathRequestMatcher[PUBLIC_ENDPOINTS.length];
+        for (int i = 0; i < PUBLIC_ENDPOINTS.length; i++) {
+            matchers[i] = new AntPathRequestMatcher(PUBLIC_ENDPOINTS[i]);
+        }
+        return matchers;
     }
 
     private void writeSecurityError(jakarta.servlet.http.HttpServletResponse response, int code, String message)

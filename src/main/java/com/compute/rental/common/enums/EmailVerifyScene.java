@@ -1,6 +1,6 @@
 package com.compute.rental.common.enums;
 
 public enum EmailVerifyScene {
-    LOGIN,
+    SIGNUP,
     RESET_PASSWORD
 }

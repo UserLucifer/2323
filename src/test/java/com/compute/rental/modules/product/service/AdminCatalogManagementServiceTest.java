@@ -8,14 +8,18 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.baomidou.mybatisplus.core.metadata.TableInfoHelper;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.compute.rental.common.enums.CommonStatus;
+import com.compute.rental.modules.product.entity.GpuModel;
 import com.compute.rental.modules.product.entity.Product;
+import com.compute.rental.modules.product.entity.Region;
 import com.compute.rental.modules.product.mapper.AiModelMapper;
 import com.compute.rental.modules.product.mapper.GpuModelMapper;
 import com.compute.rental.modules.product.mapper.ProductMapper;
 import com.compute.rental.modules.product.mapper.RegionMapper;
 import com.compute.rental.modules.product.mapper.RentalCycleRuleMapper;
 import com.compute.rental.modules.system.service.AdminLogService;
+import java.util.List;
 import org.apache.ibatis.builder.MapperBuilderAssistant;
 import org.apache.ibatis.session.Configuration;
 import org.junit.jupiter.api.BeforeAll;
@@ -52,6 +56,39 @@ class AdminCatalogManagementServiceTest {
     void setUp() {
         service = new AdminCatalogManagementService(regionMapper, gpuModelMapper, productMapper, aiModelMapper,
                 rentalCycleRuleMapper, adminLogService);
+    }
+
+    @Test
+    void pageProductsIncludesRegionAndGpuModelNames() {
+        var product = new Product();
+        product.setId(100L);
+        product.setProductCode("P100");
+        product.setRegionId(10L);
+        product.setGpuModelId(20L);
+
+        var page = new Page<Product>(1, 10);
+        page.setRecords(List.of(product));
+        page.setTotal(1);
+
+        var region = new Region();
+        region.setId(10L);
+        region.setRegionName("北京B区");
+
+        var gpuModel = new GpuModel();
+        gpuModel.setId(20L);
+        gpuModel.setModelName("RTX 4090");
+
+        when(productMapper.selectPage(any(), any())).thenReturn(page);
+        when(regionMapper.selectBatchIds(any())).thenReturn(List.of(region));
+        when(gpuModelMapper.selectBatchIds(any())).thenReturn(List.of(gpuModel));
+
+        var result = service.pageProducts(1, 10, null, null, null, null);
+        var response = result.records().get(0);
+
+        assertEquals(10L, response.regionId());
+        assertEquals("北京B区", response.regionName());
+        assertEquals(20L, response.gpuModelId());
+        assertEquals("RTX 4090", response.gpuModelName());
     }
 
     @Test

@@ -8,6 +8,7 @@ import com.compute.rental.common.enums.ErrorCode;
 import com.compute.rental.common.exception.BusinessException;
 import com.compute.rental.common.page.PageResult;
 import com.compute.rental.common.util.DateTimeUtils;
+import com.compute.rental.modules.product.dto.AdminProductResponse;
 import com.compute.rental.modules.product.entity.AiModel;
 import com.compute.rental.modules.product.entity.GpuModel;
 import com.compute.rental.modules.product.entity.Product;
@@ -19,6 +20,11 @@ import com.compute.rental.modules.product.mapper.ProductMapper;
 import com.compute.rental.modules.product.mapper.RegionMapper;
 import com.compute.rental.modules.product.mapper.RentalCycleRuleMapper;
 import com.compute.rental.modules.system.service.AdminLogService;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -137,8 +143,8 @@ public class AdminCatalogManagementService {
         return requireGpuModel(id);
     }
 
-    public PageResult<Product> pageProducts(long pageNo, long pageSize, String productCode,
-                                            Long regionId, Long gpuModelId, Integer status) {
+    public PageResult<AdminProductResponse> pageProducts(long pageNo, long pageSize, String productCode,
+                                                         Long regionId, Long gpuModelId, Integer status) {
         var page = new Page<Product>(pageNo, pageSize);
         var wrapper = new LambdaQueryWrapper<Product>()
                 .eq(hasText(productCode), Product::getProductCode, productCode)
@@ -148,11 +154,22 @@ public class AdminCatalogManagementService {
                 .orderByAsc(Product::getSortNo)
                 .orderByDesc(Product::getId);
         var result = productMapper.selectPage(page, wrapper);
-        return new PageResult<>(result.getRecords(), result.getTotal(), result.getCurrent(), result.getSize());
+        var products = result.getRecords();
+        var regionMap = regionMap(products);
+        var gpuModelMap = gpuModelMap(products);
+        var records = products.stream()
+                .map(product -> toAdminProductResponse(product, regionMap, gpuModelMap))
+                .toList();
+        return new PageResult<>(records, result.getTotal(), result.getCurrent(), result.getSize());
     }
 
-    public Product getProduct(String productCode) {
-        return requireProduct(productCode);
+    public AdminProductResponse getProduct(String productCode) {
+        var product = requireProduct(productCode);
+        return toAdminProductResponse(product,
+                product.getRegionId() == null ? Collections.emptyMap()
+                        : Map.of(product.getRegionId(), requireRegion(product.getRegionId())),
+                product.getGpuModelId() == null ? Collections.emptyMap()
+                        : Map.of(product.getGpuModelId(), requireGpuModel(product.getGpuModelId())));
     }
 
     @Transactional
@@ -324,6 +341,70 @@ public class AdminCatalogManagementService {
             throw new BusinessException(ErrorCode.NOT_FOUND, "Rental cycle rule not found");
         }
         return rule;
+    }
+
+    private Map<Long, Region> regionMap(List<Product> products) {
+        var ids = products.stream()
+                .map(Product::getRegionId)
+                .filter(id -> id != null)
+                .collect(Collectors.toSet());
+        if (ids.isEmpty()) {
+            return Collections.emptyMap();
+        }
+        return regionMapper.selectBatchIds(ids).stream()
+                .collect(Collectors.toMap(Region::getId, Function.identity()));
+    }
+
+    private Map<Long, GpuModel> gpuModelMap(List<Product> products) {
+        var ids = products.stream()
+                .map(Product::getGpuModelId)
+                .filter(id -> id != null)
+                .collect(Collectors.toSet());
+        if (ids.isEmpty()) {
+            return Collections.emptyMap();
+        }
+        return gpuModelMapper.selectBatchIds(ids).stream()
+                .collect(Collectors.toMap(GpuModel::getId, Function.identity()));
+    }
+
+    private AdminProductResponse toAdminProductResponse(Product product, Map<Long, Region> regionMap,
+                                                       Map<Long, GpuModel> gpuModelMap) {
+        var region = regionMap.get(product.getRegionId());
+        var gpuModel = gpuModelMap.get(product.getGpuModelId());
+        return new AdminProductResponse(
+                product.getId(),
+                product.getProductCode(),
+                product.getProductName(),
+                product.getMachineCode(),
+                product.getMachineAlias(),
+                product.getRegionId(),
+                region == null ? null : region.getRegionName(),
+                product.getGpuModelId(),
+                gpuModel == null ? null : gpuModel.getModelName(),
+                product.getGpuMemoryGb(),
+                product.getGpuPowerTops(),
+                product.getRentPrice(),
+                product.getTokenOutputPerMinute(),
+                product.getTokenOutputPerDay(),
+                product.getRentableUntil(),
+                product.getTotalStock(),
+                product.getAvailableStock(),
+                product.getRentedStock(),
+                product.getCpuModel(),
+                product.getCpuCores(),
+                product.getMemoryGb(),
+                product.getSystemDiskGb(),
+                product.getDataDiskGb(),
+                product.getMaxExpandDiskGb(),
+                product.getDriverVersion(),
+                product.getCudaVersion(),
+                product.getHasCacheOptimization(),
+                product.getStatus(),
+                product.getSortNo(),
+                product.getVersionNo(),
+                product.getCreatedAt(),
+                product.getUpdatedAt()
+        );
     }
 
     private Integer defaultStatus(Integer status) {

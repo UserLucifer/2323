@@ -3,6 +3,7 @@ package com.compute.rental.modules.product.controller;
 import com.compute.rental.common.api.ApiResponse;
 import com.compute.rental.common.enums.CommonStatus;
 import com.compute.rental.common.page.PageResult;
+import com.compute.rental.modules.product.dto.AdminProductResponse;
 import com.compute.rental.modules.product.entity.AiModel;
 import com.compute.rental.modules.product.entity.GpuModel;
 import com.compute.rental.modules.product.entity.Product;
@@ -135,7 +136,7 @@ public class AdminCatalogManagementController {
 
     @Operation(summary = "Admin products")
     @GetMapping("/products")
-    public ApiResponse<PageResult<Product>> products(
+    public ApiResponse<PageResult<AdminProductResponse>> products(
             @RequestParam(defaultValue = "1") long pageNo,
             @RequestParam(defaultValue = "10") long pageSize,
             @RequestParam(required = false, name = "product_code") String productCode,
@@ -149,7 +150,7 @@ public class AdminCatalogManagementController {
 
     @Operation(summary = "Admin product detail")
     @GetMapping("/products/{productCode}")
-    public ApiResponse<Product> product(@PathVariable String productCode) {
+    public ApiResponse<AdminProductResponse> product(@PathVariable String productCode) {
         return ApiResponse.success(adminCatalogManagementService.getProduct(productCode));
     }
 
