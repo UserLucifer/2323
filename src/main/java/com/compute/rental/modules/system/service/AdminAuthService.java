@@ -8,7 +8,11 @@ import com.compute.rental.common.exception.BusinessException;
 import com.compute.rental.common.util.DateTimeUtils;
 import com.compute.rental.modules.system.dto.AdminLoginRequest;
 import com.compute.rental.modules.system.dto.AdminLoginResponse;
+import com.compute.rental.modules.system.dto.AdminListResponse;
 import com.compute.rental.modules.system.dto.AdminMeResponse;
+import com.compute.rental.modules.system.dto.AdminRegisterRequest;
+import com.compute.rental.common.page.PageResult;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.compute.rental.modules.system.entity.SysAdmin;
 import com.compute.rental.modules.system.mapper.SysAdminMapper;
 import com.compute.rental.security.IdentityType;
@@ -84,6 +88,42 @@ public class AdminAuthService {
                 null, null, "TODO token blacklist is not implemented", ip);
     }
 
+    public PageResult<AdminListResponse> pageAdmins(long pageNo, long pageSize, String userName, String role, Integer status) {
+        var page = new Page<SysAdmin>(pageNo, pageSize);
+        var wrapper = new LambdaQueryWrapper<SysAdmin>()
+                .like(userName != null && !userName.isBlank(), SysAdmin::getUserName, userName)
+                .eq(role != null && !role.isBlank(), SysAdmin::getRole, role)
+                .eq(status != null, SysAdmin::getStatus, status)
+                .orderByDesc(SysAdmin::getId);
+        var result = sysAdminMapper.selectPage(page, wrapper);
+        return new PageResult<>(result.getRecords().stream().map(this::toListResponse).toList(),
+                result.getTotal(), result.getCurrent(), result.getSize());
+    }
+
+    @Transactional
+    public void register(AdminRegisterRequest request, Long currentAdminId, String ip) {
+        // Check if exists
+        var existing = sysAdminMapper.selectOne(new LambdaQueryWrapper<SysAdmin>()
+                .eq(SysAdmin::getUserName, request.userName().trim())
+                .last("LIMIT 1"));
+        if (existing != null) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST, "用户名已存在");
+        }
+
+        var admin = new SysAdmin();
+        admin.setUserName(request.userName().trim());
+        admin.setPasswordHash(passwordEncoder.encode(request.password()));
+        admin.setRole(request.role());
+        admin.setStatus(1); // Enabled by default
+        admin.setCreatedBy(currentAdminId);
+        admin.setCreatedAt(DateTimeUtils.now());
+        admin.setUpdatedAt(DateTimeUtils.now());
+        sysAdminMapper.insert(admin);
+
+        adminLogService.log(currentAdminId, "CREATE_ADMIN", "sys_admin", admin.getId(),
+                null, "role=" + request.role(), "Created new administrator: " + request.userName(), ip);
+    }
+
     private SysAdmin requireEnabledAdmin(Long adminId) {
         var admin = sysAdminMapper.selectById(adminId);
         if (admin == null) {
@@ -101,6 +141,17 @@ public class AdminAuthService {
                 admin.getUserName(),
                 admin.getStatus(),
                 admin.getRole()
+        );
+    }
+
+    private AdminListResponse toListResponse(SysAdmin admin) {
+        return new AdminListResponse(
+                admin.getId(),
+                admin.getUserName(),
+                admin.getStatus(),
+                admin.getRole(),
+                admin.getLastLoginAt(),
+                admin.getCreatedAt()
         );
     }
 }

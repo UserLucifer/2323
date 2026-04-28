@@ -15,7 +15,7 @@ public class SysNotification {
     @TableField("user_id")
     private Long userId;
 
-    @TableField("user_name")
+    @TableField(exist = false)
     private String userName;
 
     @TableField("title")
