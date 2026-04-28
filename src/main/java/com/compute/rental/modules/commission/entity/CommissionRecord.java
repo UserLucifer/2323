@@ -22,6 +22,9 @@ public class CommissionRecord {
     @TableField("source_user_id")
     private Long sourceUserId;
 
+    @TableField(exist = false)
+    private String userName;
+
     @TableField("source_order_id")
     private Long sourceOrderId;
 
@@ -88,6 +91,14 @@ public class CommissionRecord {
 
     public void setSourceUserId(Long sourceUserId) {
         this.sourceUserId = sourceUserId;
+    }
+
+    public String getUserName() {
+        return userName;
+    }
+
+    public void setUserName(String userName) {
+        this.userName = userName;
     }
 
     public Long getSourceOrderId() {

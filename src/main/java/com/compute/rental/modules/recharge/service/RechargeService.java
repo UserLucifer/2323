@@ -19,6 +19,8 @@ import com.compute.rental.modules.recharge.dto.RechargeOrderQueryRequest;
 import com.compute.rental.modules.recharge.dto.RechargeOrderResponse;
 import com.compute.rental.modules.system.service.SysConfigDefaults;
 import com.compute.rental.modules.system.service.SysConfigService;
+import com.compute.rental.modules.user.entity.AppUser;
+import com.compute.rental.modules.user.mapper.AppUserMapper;
 import com.compute.rental.modules.wallet.entity.RechargeChannel;
 import com.compute.rental.modules.wallet.entity.RechargeOrder;
 import com.compute.rental.modules.wallet.entity.UserWallet;
@@ -27,8 +29,10 @@ import com.compute.rental.modules.wallet.mapper.RechargeOrderMapper;
 import com.compute.rental.modules.wallet.mapper.UserWalletMapper;
 import com.compute.rental.modules.wallet.service.WalletService;
 import java.math.BigDecimal;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.UUID;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
@@ -44,6 +48,7 @@ public class RechargeService {
     private final RechargeChannelMapper rechargeChannelMapper;
     private final RechargeOrderMapper rechargeOrderMapper;
     private final UserWalletMapper userWalletMapper;
+    private final AppUserMapper appUserMapper;
     private final SysConfigService sysConfigService;
     private final WalletService walletService;
 
@@ -51,12 +56,14 @@ public class RechargeService {
             RechargeChannelMapper rechargeChannelMapper,
             RechargeOrderMapper rechargeOrderMapper,
             UserWalletMapper userWalletMapper,
+            AppUserMapper appUserMapper,
             SysConfigService sysConfigService,
             WalletService walletService
     ) {
         this.rechargeChannelMapper = rechargeChannelMapper;
         this.rechargeOrderMapper = rechargeOrderMapper;
         this.userWalletMapper = userWalletMapper;
+        this.appUserMapper = appUserMapper;
         this.sysConfigService = sysConfigService;
         this.walletService = walletService;
     }
@@ -122,7 +129,10 @@ public class RechargeService {
                 .le(request.endTime() != null, RechargeOrder::getCreatedAt, request.endTime())
                 .orderByDesc(RechargeOrder::getId);
         var result = rechargeOrderMapper.selectPage(page, wrapper);
-        return new PageResult<>(result.getRecords().stream().map(this::toOrderResponse).toList(),
+        var userNames = userNameMap(result.getRecords().stream().map(RechargeOrder::getUserId).toList());
+        return new PageResult<>(result.getRecords().stream()
+                .map(order -> toOrderResponse(order, userNames.get(order.getUserId())))
+                .toList(),
                 result.getTotal(), result.getCurrent(), result.getSize());
     }
 
@@ -155,7 +165,10 @@ public class RechargeService {
                 .le(request.endTime() != null, RechargeOrder::getCreatedAt, request.endTime())
                 .orderByDesc(RechargeOrder::getId);
         var result = rechargeOrderMapper.selectPage(page, wrapper);
-        return new PageResult<>(result.getRecords().stream().map(this::toOrderResponse).toList(),
+        var userNames = userNameMap(result.getRecords().stream().map(RechargeOrder::getUserId).toList());
+        return new PageResult<>(result.getRecords().stream()
+                .map(order -> toOrderResponse(order, userNames.get(order.getUserId())))
+                .toList(),
                 result.getTotal(), result.getCurrent(), result.getSize());
     }
 
@@ -306,8 +319,13 @@ public class RechargeService {
     }
 
     private RechargeOrderResponse toOrderResponse(RechargeOrder order) {
+        return toOrderResponse(order, userName(order.getUserId()));
+    }
+
+    private RechargeOrderResponse toOrderResponse(RechargeOrder order, String userName) {
         return new RechargeOrderResponse(
                 order.getRechargeNo(),
+                userName,
                 order.getChannelId(),
                 order.getCurrency(),
                 order.getChannelNameSnapshot(),
@@ -331,6 +349,23 @@ public class RechargeService {
 
     private String normalizeExternalTxNo(String externalTxNo) {
         return trimToNull(externalTxNo);
+    }
+
+    private String userName(Long userId) {
+        var user = userId == null ? null : appUserMapper.selectById(userId);
+        return user == null ? null : user.getNickname();
+    }
+
+    private Map<Long, String> userNameMap(List<Long> userIds) {
+        var ids = userIds.stream().filter(id -> id != null).distinct().toList();
+        if (ids.isEmpty()) {
+            return Map.of();
+        }
+        var userNames = new HashMap<Long, String>();
+        for (var user : appUserMapper.selectBatchIds(ids)) {
+            userNames.put(user.getId(), user.getNickname());
+        }
+        return userNames;
     }
 
     private String trimToNull(String value) {

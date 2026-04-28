@@ -22,6 +22,9 @@ public class WalletTransaction {
     @TableField("user_id")
     private Long userId;
 
+    @TableField(exist = false)
+    private String userName;
+
     @TableField("wallet_id")
     private Long walletId;
 
@@ -88,6 +91,14 @@ public class WalletTransaction {
 
     public void setUserId(Long userId) {
         this.userId = userId;
+    }
+
+    public String getUserName() {
+        return userName;
+    }
+
+    public void setUserName(String userName) {
+        this.userName = userName;
     }
 
     public Long getWalletId() {

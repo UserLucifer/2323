@@ -11,6 +11,8 @@ import com.compute.rental.common.exception.BusinessException;
 import com.compute.rental.common.page.PageResult;
 import com.compute.rental.common.util.DateTimeUtils;
 import com.compute.rental.common.util.MoneyUtils;
+import com.compute.rental.modules.user.entity.AppUser;
+import com.compute.rental.modules.user.mapper.AppUserMapper;
 import com.compute.rental.modules.wallet.dto.WalletMeResponse;
 import com.compute.rental.modules.wallet.dto.WalletTransactionQueryRequest;
 import com.compute.rental.modules.wallet.dto.WalletTransactionResponse;
@@ -19,7 +21,10 @@ import com.compute.rental.modules.wallet.entity.WalletTransaction;
 import com.compute.rental.modules.wallet.mapper.UserWalletMapper;
 import com.compute.rental.modules.wallet.mapper.WalletTransactionMapper;
 import java.math.BigDecimal;
+import java.util.HashMap;
+import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.UUID;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
@@ -33,10 +38,16 @@ public class WalletService {
 
     private final UserWalletMapper userWalletMapper;
     private final WalletTransactionMapper walletTransactionMapper;
+    private final AppUserMapper appUserMapper;
 
-    public WalletService(UserWalletMapper userWalletMapper, WalletTransactionMapper walletTransactionMapper) {
+    public WalletService(
+            UserWalletMapper userWalletMapper,
+            WalletTransactionMapper walletTransactionMapper,
+            AppUserMapper appUserMapper
+    ) {
         this.userWalletMapper = userWalletMapper;
         this.walletTransactionMapper = walletTransactionMapper;
+        this.appUserMapper = appUserMapper;
     }
 
     public WalletMeResponse getCurrentUserWallet(Long userId) {
@@ -68,8 +79,9 @@ public class WalletService {
                 .orderByDesc(WalletTransaction::getId);
 
         var result = walletTransactionMapper.selectPage(page, wrapper);
+        var userNames = userNameMap(result.getRecords().stream().map(WalletTransaction::getUserId).toList());
         var records = result.getRecords().stream()
-                .map(this::toTransactionResponse)
+                .map(transaction -> toTransactionResponse(transaction, userNames.get(transaction.getUserId())))
                 .toList();
         return new PageResult<>(records, result.getTotal(), result.getCurrent(), result.getSize());
     }
@@ -415,8 +427,13 @@ public class WalletService {
     }
 
     private WalletTransactionResponse toTransactionResponse(WalletTransaction transaction) {
+        return toTransactionResponse(transaction, userName(transaction.getUserId()));
+    }
+
+    private WalletTransactionResponse toTransactionResponse(WalletTransaction transaction, String userName) {
         return new WalletTransactionResponse(
                 transaction.getTxNo(),
+                userName,
                 transaction.getTxType(),
                 transaction.getAmount(),
                 transaction.getBeforeAvailableBalance(),
@@ -433,5 +450,22 @@ public class WalletService {
     private String generateTxNo() {
         return "WT" + DateTimeUtils.now().format(java.time.format.DateTimeFormatter.ofPattern("yyyyMMddHHmmss"))
                 + UUID.randomUUID().toString().replace("-", "").substring(0, 10).toUpperCase(Locale.ROOT);
+    }
+
+    private String userName(Long userId) {
+        var user = userId == null ? null : appUserMapper.selectById(userId);
+        return user == null ? null : user.getNickname();
+    }
+
+    private Map<Long, String> userNameMap(List<Long> userIds) {
+        var ids = userIds.stream().filter(id -> id != null).distinct().toList();
+        if (ids.isEmpty()) {
+            return Map.of();
+        }
+        var userNames = new HashMap<Long, String>();
+        for (var user : appUserMapper.selectBatchIds(ids)) {
+            userNames.put(user.getId(), user.getNickname());
+        }
+        return userNames;
     }
 }

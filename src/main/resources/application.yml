@@ -81,11 +81,11 @@ app:
   time-zone: Asia/Shanghai
   jwt:
     issuer: compute-rental
-    secret: dev-only-change-me-32-bytes-minimum-secret
+    secret: ${JWT_SECRET:dev-only-change-me-32-bytes-minimum-secret}
     access-token-ttl: 24h
   api-token:
-    encryption-secret: dev-only-token-secret-change-me
-    base-url: https://api.example.invalid/v1
+    encryption-secret: ${API_TOKEN_ENCRYPTION_SECRET:dev-only-token-secret-change-me}
+    base-url: ${API_TOKEN_BASE_URL:https://api.example.invalid/v1}
   auth:
     email-code-ttl: 5m
     email-code-length: 6

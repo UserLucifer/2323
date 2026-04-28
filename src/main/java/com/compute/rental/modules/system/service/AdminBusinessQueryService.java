@@ -35,7 +35,9 @@ import java.lang.reflect.Modifier;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -202,6 +204,8 @@ public class AdminBusinessQueryService {
                 .le(endTime != null, WalletTransaction::getCreatedAt, endTime)
                 .orderByDesc(WalletTransaction::getId);
         var result = walletTransactionMapper.selectPage(page, wrapper);
+        var userNames = userNameMap(result.getRecords().stream().map(WalletTransaction::getUserId).toList());
+        result.getRecords().forEach(transaction -> transaction.setUserName(userNames.get(transaction.getUserId())));
         return new PageResult<>(result.getRecords(), result.getTotal(), result.getCurrent(), result.getSize());
     }
 
@@ -227,6 +231,8 @@ public class AdminBusinessQueryService {
                 .le(endTime != null, RentalOrder::getCreatedAt, endTime)
                 .orderByDesc(RentalOrder::getId);
         var result = rentalOrderMapper.selectPage(page, wrapper);
+        var userNames = userNameMap(result.getRecords().stream().map(RentalOrder::getUserId).toList());
+        result.getRecords().forEach(order -> order.setUserName(userNames.get(order.getUserId())));
         return new PageResult<>(result.getRecords(), result.getTotal(), result.getCurrent(), result.getSize());
     }
 
@@ -297,6 +303,8 @@ public class AdminBusinessQueryService {
                 .le(endTime != null, ApiDeployOrder::getCreatedAt, endTime)
                 .orderByDesc(ApiDeployOrder::getId);
         var result = apiDeployOrderMapper.selectPage(page, wrapper);
+        var userNames = userNameMap(result.getRecords().stream().map(ApiDeployOrder::getUserId).toList());
+        result.getRecords().forEach(order -> order.setUserName(userNames.get(order.getUserId())));
         return new PageResult<>(result.getRecords(), result.getTotal(), result.getCurrent(), result.getSize());
     }
 
@@ -307,6 +315,7 @@ public class AdminBusinessQueryService {
         if (order == null) {
             throw new BusinessException(ErrorCode.NOT_FOUND, "API 部署订单不存在");
         }
+        fillUserName(order);
         return order;
     }
 
@@ -334,6 +343,8 @@ public class AdminBusinessQueryService {
                 .le(endTime != null, RentalProfitRecord::getCreatedAt, endTime)
                 .orderByDesc(RentalProfitRecord::getId);
         var result = profitRecordMapper.selectPage(page, wrapper);
+        var userNames = userNameMap(result.getRecords().stream().map(RentalProfitRecord::getUserId).toList());
+        result.getRecords().forEach(record -> record.setUserName(userNames.get(record.getUserId())));
         return new PageResult<>(result.getRecords(), result.getTotal(), result.getCurrent(), result.getSize());
     }
 
@@ -344,6 +355,7 @@ public class AdminBusinessQueryService {
         if (record == null) {
             throw new BusinessException(ErrorCode.NOT_FOUND, "收益记录不存在");
         }
+        fillUserName(record);
         return record;
     }
 
@@ -371,6 +383,8 @@ public class AdminBusinessQueryService {
                 .le(endTime != null, RentalSettlementOrder::getCreatedAt, endTime)
                 .orderByDesc(RentalSettlementOrder::getId);
         var result = settlementOrderMapper.selectPage(page, wrapper);
+        var userNames = userNameMap(result.getRecords().stream().map(RentalSettlementOrder::getUserId).toList());
+        result.getRecords().forEach(order -> order.setUserName(userNames.get(order.getUserId())));
         return new PageResult<>(result.getRecords(), result.getTotal(), result.getCurrent(), result.getSize());
     }
 
@@ -381,6 +395,7 @@ public class AdminBusinessQueryService {
         if (order == null) {
             throw new BusinessException(ErrorCode.NOT_FOUND, "结算订单不存在");
         }
+        fillUserName(order);
         return order;
     }
 
@@ -408,6 +423,8 @@ public class AdminBusinessQueryService {
                 .le(endTime != null, CommissionRecord::getCreatedAt, endTime)
                 .orderByDesc(CommissionRecord::getId);
         var result = commissionRecordMapper.selectPage(page, wrapper);
+        var userNames = userNameMap(result.getRecords().stream().map(CommissionRecord::getSourceUserId).toList());
+        result.getRecords().forEach(record -> record.setUserName(userNames.get(record.getSourceUserId())));
         return new PageResult<>(result.getRecords(), result.getTotal(), result.getCurrent(), result.getSize());
     }
 
@@ -418,6 +435,7 @@ public class AdminBusinessQueryService {
         if (record == null) {
             throw new BusinessException(ErrorCode.NOT_FOUND, "佣金记录不存在");
         }
+        fillUserName(record);
         return record;
     }
 
@@ -561,6 +579,47 @@ public class AdminBusinessQueryService {
         result.put("created_at", credential.getCreatedAt());
         result.put("updated_at", credential.getUpdatedAt());
         return result;
+    }
+
+    private void fillUserName(WalletTransaction transaction) {
+        transaction.setUserName(userName(transaction.getUserId()));
+    }
+
+    private void fillUserName(RentalOrder order) {
+        order.setUserName(userName(order.getUserId()));
+    }
+
+    private void fillUserName(ApiDeployOrder order) {
+        order.setUserName(userName(order.getUserId()));
+    }
+
+    private void fillUserName(RentalProfitRecord record) {
+        record.setUserName(userName(record.getUserId()));
+    }
+
+    private void fillUserName(RentalSettlementOrder order) {
+        order.setUserName(userName(order.getUserId()));
+    }
+
+    private void fillUserName(CommissionRecord record) {
+        record.setUserName(userName(record.getSourceUserId()));
+    }
+
+    private String userName(Long userId) {
+        var user = userId == null ? null : appUserMapper.selectById(userId);
+        return user == null ? null : user.getNickname();
+    }
+
+    private Map<Long, String> userNameMap(List<Long> userIds) {
+        var ids = userIds.stream().filter(id -> id != null).distinct().toList();
+        if (ids.isEmpty()) {
+            return Map.of();
+        }
+        var userNames = new HashMap<Long, String>();
+        for (var user : appUserMapper.selectBatchIds(ids)) {
+            userNames.put(user.getId(), user.getNickname());
+        }
+        return userNames;
     }
 
     private long countDepth(Iterable<UserTeamRelation> relations, int depth) {

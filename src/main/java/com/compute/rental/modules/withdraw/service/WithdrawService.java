@@ -13,6 +13,8 @@ import com.compute.rental.common.util.DateTimeUtils;
 import com.compute.rental.common.util.MoneyUtils;
 import com.compute.rental.modules.system.service.SysConfigDefaults;
 import com.compute.rental.modules.system.service.SysConfigService;
+import com.compute.rental.modules.user.entity.AppUser;
+import com.compute.rental.modules.user.mapper.AppUserMapper;
 import com.compute.rental.modules.wallet.entity.UserWallet;
 import com.compute.rental.modules.wallet.entity.WithdrawOrder;
 import com.compute.rental.modules.wallet.mapper.UserWalletMapper;
@@ -25,8 +27,10 @@ import com.compute.rental.modules.withdraw.dto.CreateWithdrawOrderRequest;
 import com.compute.rental.modules.withdraw.dto.WithdrawOrderQueryRequest;
 import com.compute.rental.modules.withdraw.dto.WithdrawOrderResponse;
 import java.math.BigDecimal;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.UUID;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -48,6 +52,7 @@ public class WithdrawService {
 
     private final WithdrawOrderMapper withdrawOrderMapper;
     private final UserWalletMapper userWalletMapper;
+    private final AppUserMapper appUserMapper;
     private final SysConfigService sysConfigService;
     private final WalletService walletService;
     private final WithdrawAddressValidator addressValidator;
@@ -55,12 +60,14 @@ public class WithdrawService {
     public WithdrawService(
             WithdrawOrderMapper withdrawOrderMapper,
             UserWalletMapper userWalletMapper,
+            AppUserMapper appUserMapper,
             SysConfigService sysConfigService,
             WalletService walletService,
             WithdrawAddressValidator addressValidator
     ) {
         this.withdrawOrderMapper = withdrawOrderMapper;
         this.userWalletMapper = userWalletMapper;
+        this.appUserMapper = appUserMapper;
         this.sysConfigService = sysConfigService;
         this.walletService = walletService;
         this.addressValidator = addressValidator;
@@ -127,7 +134,10 @@ public class WithdrawService {
                 .le(request.endTime() != null, WithdrawOrder::getCreatedAt, request.endTime())
                 .orderByDesc(WithdrawOrder::getId);
         var result = withdrawOrderMapper.selectPage(page, wrapper);
-        return new PageResult<>(result.getRecords().stream().map(this::toResponse).toList(),
+        var userNames = userNameMap(result.getRecords().stream().map(WithdrawOrder::getUserId).toList());
+        return new PageResult<>(result.getRecords().stream()
+                .map(order -> toResponse(order, userNames.get(order.getUserId())))
+                .toList(),
                 result.getTotal(), result.getCurrent(), result.getSize());
     }
 
@@ -156,7 +166,10 @@ public class WithdrawService {
                 .le(request.endTime() != null, WithdrawOrder::getCreatedAt, request.endTime())
                 .orderByDesc(WithdrawOrder::getId);
         var result = withdrawOrderMapper.selectPage(page, wrapper);
-        return new PageResult<>(result.getRecords().stream().map(this::toResponse).toList(),
+        var userNames = userNameMap(result.getRecords().stream().map(WithdrawOrder::getUserId).toList());
+        return new PageResult<>(result.getRecords().stream()
+                .map(order -> toResponse(order, userNames.get(order.getUserId())))
+                .toList(),
                 result.getTotal(), result.getCurrent(), result.getSize());
     }
 
@@ -312,8 +325,13 @@ public class WithdrawService {
     }
 
     private WithdrawOrderResponse toResponse(WithdrawOrder order) {
+        return toResponse(order, userName(order.getUserId()));
+    }
+
+    private WithdrawOrderResponse toResponse(WithdrawOrder order, String userName) {
         return new WithdrawOrderResponse(
                 order.getWithdrawNo(),
+                userName,
                 order.getCurrency(),
                 order.getWithdrawMethod(),
                 order.getNetwork(),
@@ -337,6 +355,23 @@ public class WithdrawService {
 
     private String trimToNull(String value) {
         return StringUtils.hasText(value) ? value.trim() : null;
+    }
+
+    private String userName(Long userId) {
+        var user = userId == null ? null : appUserMapper.selectById(userId);
+        return user == null ? null : user.getNickname();
+    }
+
+    private Map<Long, String> userNameMap(List<Long> userIds) {
+        var ids = userIds.stream().filter(id -> id != null).distinct().toList();
+        if (ids.isEmpty()) {
+            return Map.of();
+        }
+        var userNames = new HashMap<Long, String>();
+        for (var user : appUserMapper.selectBatchIds(ids)) {
+            userNames.put(user.getId(), user.getNickname());
+        }
+        return userNames;
     }
 
     private String generateWithdrawNo() {

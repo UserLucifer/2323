@@ -1,10 +1,13 @@
 package com.compute.rental.modules.order.dto;
 
+import io.swagger.v3.oas.annotations.media.Schema;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 public record RentalOrderDetailResponse(
         String orderNo,
+        @Schema(description = "用户名称")
+        String userName,
         Long productId,
         Long aiModelId,
         Long cycleRuleId,

@@ -38,9 +38,14 @@ import com.compute.rental.modules.product.mapper.GpuModelMapper;
 import com.compute.rental.modules.product.mapper.ProductMapper;
 import com.compute.rental.modules.product.mapper.RegionMapper;
 import com.compute.rental.modules.product.mapper.RentalCycleRuleMapper;
+import com.compute.rental.modules.user.entity.AppUser;
+import com.compute.rental.modules.user.mapper.AppUserMapper;
 import com.compute.rental.modules.wallet.service.WalletService;
 import java.math.BigDecimal;
+import java.util.HashMap;
+import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.UUID;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
@@ -61,6 +66,7 @@ public class RentalOrderService {
     private final RentalCycleRuleMapper rentalCycleRuleMapper;
     private final RegionMapper regionMapper;
     private final GpuModelMapper gpuModelMapper;
+    private final AppUserMapper appUserMapper;
     private final WalletService walletService;
     private final ApiTokenCryptoService apiTokenCryptoService;
     private final ApiTokenProperties apiTokenProperties;
@@ -74,6 +80,7 @@ public class RentalOrderService {
             RentalCycleRuleMapper rentalCycleRuleMapper,
             RegionMapper regionMapper,
             GpuModelMapper gpuModelMapper,
+            AppUserMapper appUserMapper,
             WalletService walletService,
             ApiTokenCryptoService apiTokenCryptoService,
             ApiTokenProperties apiTokenProperties
@@ -86,6 +93,7 @@ public class RentalOrderService {
         this.rentalCycleRuleMapper = rentalCycleRuleMapper;
         this.regionMapper = regionMapper;
         this.gpuModelMapper = gpuModelMapper;
+        this.appUserMapper = appUserMapper;
         this.walletService = walletService;
         this.apiTokenCryptoService = apiTokenCryptoService;
         this.apiTokenProperties = apiTokenProperties;
@@ -112,7 +120,10 @@ public class RentalOrderService {
                 .le(request.endTime() != null, RentalOrder::getCreatedAt, request.endTime())
                 .orderByDesc(RentalOrder::getId);
         var result = rentalOrderMapper.selectPage(page, wrapper);
-        return new PageResult<>(result.getRecords().stream().map(this::toSummaryResponse).toList(),
+        var userNames = userNameMap(result.getRecords().stream().map(RentalOrder::getUserId).toList());
+        return new PageResult<>(result.getRecords().stream()
+                .map(order -> toSummaryResponse(order, userNames.get(order.getUserId())))
+                .toList(),
                 result.getTotal(), result.getCurrent(), result.getSize());
     }
 
@@ -511,8 +522,13 @@ public class RentalOrderService {
     }
 
     private RentalOrderSummaryResponse toSummaryResponse(RentalOrder order) {
+        return toSummaryResponse(order, userName(order.getUserId()));
+    }
+
+    private RentalOrderSummaryResponse toSummaryResponse(RentalOrder order, String userName) {
         return new RentalOrderSummaryResponse(
                 order.getOrderNo(),
+                userName,
                 order.getProductNameSnapshot(),
                 order.getMachineCodeSnapshot(),
                 order.getMachineAliasSnapshot(),
@@ -540,6 +556,7 @@ public class RentalOrderService {
     private RentalOrderDetailResponse toDetailResponse(RentalOrder order, ApiCredential credential) {
         return new RentalOrderDetailResponse(
                 order.getOrderNo(),
+                userName(order.getUserId()),
                 order.getProductId(),
                 order.getAiModelId(),
                 order.getCycleRuleId(),
@@ -633,6 +650,7 @@ public class RentalOrderService {
     ) {
         return new ApiDeployOrderResponse(
                 deployOrder.getDeployNo(),
+                userName(deployOrder.getUserId()),
                 order.getOrderNo(),
                 credential.getCredentialNo(),
                 deployOrder.getModelNameSnapshot(),
@@ -647,6 +665,23 @@ public class RentalOrderService {
     private String generateOrderNo() {
         return "RO" + DateTimeUtils.now().format(java.time.format.DateTimeFormatter.ofPattern("yyyyMMddHHmmss"))
                 + randomSuffix(8);
+    }
+
+    private String userName(Long userId) {
+        var user = userId == null ? null : appUserMapper.selectById(userId);
+        return user == null ? null : user.getNickname();
+    }
+
+    private Map<Long, String> userNameMap(List<Long> userIds) {
+        var ids = userIds.stream().filter(id -> id != null).distinct().toList();
+        if (ids.isEmpty()) {
+            return Map.of();
+        }
+        var userNames = new HashMap<Long, String>();
+        for (var user : appUserMapper.selectBatchIds(ids)) {
+            userNames.put(user.getId(), user.getNickname());
+        }
+        return userNames;
     }
 
     private String generateCredentialNo() {

@@ -22,6 +22,8 @@ import com.compute.rental.modules.commission.mapper.CommissionRuleMapper;
 import com.compute.rental.modules.order.entity.RentalProfitRecord;
 import com.compute.rental.modules.order.mapper.RentalProfitRecordMapper;
 import com.compute.rental.modules.user.entity.UserReferralRelation;
+import com.compute.rental.modules.user.entity.AppUser;
+import com.compute.rental.modules.user.mapper.AppUserMapper;
 import com.compute.rental.modules.user.mapper.UserReferralRelationMapper;
 import com.compute.rental.modules.wallet.entity.UserWallet;
 import com.compute.rental.modules.wallet.service.WalletService;
@@ -53,6 +55,7 @@ public class CommissionService {
     private final CommissionRecordMapper commissionRecordMapper;
     private final RentalProfitRecordMapper profitRecordMapper;
     private final UserReferralRelationMapper referralRelationMapper;
+    private final AppUserMapper appUserMapper;
     private final UserWalletMapper userWalletMapper;
     private final WalletService walletService;
 
@@ -61,6 +64,7 @@ public class CommissionService {
             CommissionRecordMapper commissionRecordMapper,
             RentalProfitRecordMapper profitRecordMapper,
             UserReferralRelationMapper referralRelationMapper,
+            AppUserMapper appUserMapper,
             UserWalletMapper userWalletMapper,
             WalletService walletService
     ) {
@@ -68,6 +72,7 @@ public class CommissionService {
         this.commissionRecordMapper = commissionRecordMapper;
         this.profitRecordMapper = profitRecordMapper;
         this.referralRelationMapper = referralRelationMapper;
+        this.appUserMapper = appUserMapper;
         this.userWalletMapper = userWalletMapper;
         this.walletService = walletService;
     }
@@ -105,7 +110,10 @@ public class CommissionService {
                 .le(request.endTime() != null, CommissionRecord::getCreatedAt, request.endTime())
                 .orderByDesc(CommissionRecord::getId);
         var result = commissionRecordMapper.selectPage(page, wrapper);
-        return new PageResult<>(result.getRecords().stream().map(this::toResponse).toList(),
+        var userNames = userNameMap(result.getRecords().stream().map(CommissionRecord::getSourceUserId).toList());
+        return new PageResult<>(result.getRecords().stream()
+                .map(record -> toResponse(record, userNames.get(record.getSourceUserId())))
+                .toList(),
                 result.getTotal(), result.getCurrent(), result.getSize());
     }
 
@@ -246,9 +254,14 @@ public class CommissionService {
     }
 
     private CommissionRecordResponse toResponse(CommissionRecord record) {
+        return toResponse(record, userName(record.getSourceUserId()));
+    }
+
+    private CommissionRecordResponse toResponse(CommissionRecord record, String userName) {
         return new CommissionRecordResponse(
                 record.getCommissionNo(),
                 record.getSourceUserId(),
+                userName,
                 record.getSourceOrderId(),
                 record.getSourceProfitId(),
                 record.getLevelNo(),
@@ -265,5 +278,22 @@ public class CommissionService {
     private String generateCommissionNo() {
         return "CM" + DateTimeUtils.now().format(java.time.format.DateTimeFormatter.ofPattern("yyyyMMddHHmmss"))
                 + UUID.randomUUID().toString().replace("-", "").substring(0, 8).toUpperCase(Locale.ROOT);
+    }
+
+    private String userName(Long userId) {
+        var user = userId == null ? null : appUserMapper.selectById(userId);
+        return user == null ? null : user.getNickname();
+    }
+
+    private Map<Long, String> userNameMap(List<Long> userIds) {
+        var ids = userIds.stream().filter(id -> id != null).distinct().toList();
+        if (ids.isEmpty()) {
+            return Map.of();
+        }
+        var userNames = new HashMap<Long, String>();
+        for (var user : appUserMapper.selectBatchIds(ids)) {
+            userNames.put(user.getId(), user.getNickname());
+        }
+        return userNames;
     }
 }
