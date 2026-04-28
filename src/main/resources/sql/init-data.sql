@@ -1,10 +1,10 @@
 -- Initial data generated from 算力租赁平台_正式开发版_v1.1.md
 SET NAMES utf8mb4;
 
--- Dev only default admin: username=admin, password=admin123. Change password_hash before production use.
-INSERT INTO `sys_admin` (`username`, `password_hash`, `nickname`, `role`, `status`) VALUES
-('admin', '$2a$10$sETkfpRdhwa2bsRlCl7tEe.HniV6X5y4Rl8dnG8Dae0Ht3u6guK7C', 'Default Admin', 'SUPER_ADMIN', 1)
-ON DUPLICATE KEY UPDATE `username` = `username`;
+-- Dev only default admin: user_name=admin, password=admin123. Change password_hash before production use.
+INSERT INTO `sys_admin` (`user_name`, `password_hash`, `role`, `status`) VALUES
+('admin', '$2a$10$sETkfpRdhwa2bsRlCl7tEe.HniV6X5y4Rl8dnG8Dae0Ht3u6guK7C', 'SUPER_ADMIN', 1)
+ON DUPLICATE KEY UPDATE `user_name` = `user_name`;
 INSERT INTO `rental_cycle_rule` (`cycle_code`, `cycle_name`, `cycle_days`, `yield_multiplier`, `early_penalty_rate`, `sort_no`, `status`) VALUES
 ('D7',   '7天',   7,   1.0000, 0.0100, 1, 1),
 ('D15',  '15天',  15,  1.1000, 0.0100, 2, 1),

@@ -20,9 +20,6 @@ public class UserWallet {
     @TableField("user_id")
     private Long userId;
 
-    @TableField(exist = false)
-    private String nickname;
-
     @TableField("currency")
     private String currency;
 
@@ -79,14 +76,6 @@ public class UserWallet {
 
     public void setUserId(Long userId) {
         this.userId = userId;
-    }
-
-    public String getNickname() {
-        return nickname;
-    }
-
-    public void setNickname(String nickname) {
-        this.nickname = nickname;
     }
 
     public String getCurrency() {

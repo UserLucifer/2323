@@ -10,8 +10,8 @@ public record AdminUserResponse(
         String userId,
         @Schema(description = "Email")
         String email,
-        @Schema(description = "Nickname")
-        String nickname,
+        @Schema(description = "User name")
+        String userName,
         @Schema(description = "User status")
         Integer status,
         @Schema(description = "Email verified time")

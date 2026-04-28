@@ -91,9 +91,8 @@ class AdminAuthServiceTest {
     private SysAdmin admin(Long id, Integer status, String passwordHash) {
         var admin = new SysAdmin();
         admin.setId(id);
-        admin.setUsername("admin");
+        admin.setUserName("admin");
         admin.setPasswordHash(passwordHash);
-        admin.setNickname("Admin");
         admin.setRole("SUPER_ADMIN");
         admin.setStatus(status);
         return admin;

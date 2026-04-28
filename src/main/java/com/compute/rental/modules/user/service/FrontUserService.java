@@ -20,6 +20,6 @@ public class FrontUserService {
         if (user == null) {
             throw new BusinessException(ErrorCode.UNAUTHORIZED, "用户不存在");
         }
-        return new UserMeResponse(user.getId(), user.getUserId(), user.getEmail(), user.getNickname(), user.getStatus());
+        return new UserMeResponse(user.getId(), user.getUserId(), user.getEmail(), user.getUserName(), user.getStatus());
     }
 }

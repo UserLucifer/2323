@@ -49,15 +49,15 @@ class SecurityConfigTest {
 
     @Test
     void adminLoginIsPublic() throws Exception {
-        var admin = new AdminMeResponse(1L, "admin", "Admin", 1, "SUPER_ADMIN");
+        var admin = new AdminMeResponse(1L, "admin", 1, "SUPER_ADMIN");
         when(adminAuthService.login(any(), any())).thenReturn(new AdminLoginResponse("TOKEN", admin));
 
         mockMvc.perform(post("/api/admin/auth/login")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"username\":\"admin\",\"password\":\"admin123\"}"))
+                        .content("{\"userName\":\"admin\",\"password\":\"admin123\"}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.adminAccessToken").value("TOKEN"))
-                .andExpect(jsonPath("$.data.admin.username").value("admin"));
+                .andExpect(jsonPath("$.data.admin.userName").value("admin"));
     }
 
     @Test
@@ -67,11 +67,11 @@ class SecurityConfigTest {
 
         var principal = new JwtPrincipal(1L, "admin", "SUPER_ADMIN", IdentityType.ADMIN.name());
         when(jwtTokenProvider.parse("TOKEN")).thenReturn(principal);
-        when(adminAuthService.me(1L)).thenReturn(new AdminMeResponse(1L, "admin", "Admin", 1, "SUPER_ADMIN"));
+        when(adminAuthService.me(1L)).thenReturn(new AdminMeResponse(1L, "admin", 1, "SUPER_ADMIN"));
 
         mockMvc.perform(get("/api/admin/auth/me")
                         .header("Authorization", "Bearer TOKEN"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.username").value("admin"));
+                .andExpect(jsonPath("$.data.userName").value("admin"));
     }
 }

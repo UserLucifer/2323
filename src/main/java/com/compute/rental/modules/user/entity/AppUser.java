@@ -21,8 +21,8 @@ public class AppUser {
     @TableField("password_hash")
     private String passwordHash;
 
-    @TableField("nickname")
-    private String nickname;
+    @TableField("user_name")
+    private String userName;
 
     @TableField("status")
     private Integer status;
@@ -71,12 +71,12 @@ public class AppUser {
         this.passwordHash = passwordHash;
     }
 
-    public String getNickname() {
-        return nickname;
+    public String getUserName() {
+        return userName;
     }
 
-    public void setNickname(String nickname) {
-        this.nickname = nickname;
+    public void setUserName(String userName) {
+        this.userName = userName;
     }
 
     public Integer getStatus() {

@@ -22,9 +22,6 @@ public class RentalOrder {
     @TableField(exist = false)
     private String userName;
 
-    @TableField(exist = false)
-    private String nickname;
-
     @TableField("product_id")
     private Long productId;
 
@@ -187,14 +184,6 @@ public class RentalOrder {
 
     public void setUserName(String userName) {
         this.userName = userName;
-    }
-
-    public String getNickname() {
-        return nickname;
-    }
-
-    public void setNickname(String nickname) {
-        this.nickname = nickname;
     }
 
     public Long getProductId() {

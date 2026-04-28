@@ -12,11 +12,15 @@ import com.compute.rental.common.page.PageResult;
 import com.compute.rental.common.util.DateTimeUtils;
 import com.compute.rental.common.util.MoneyUtils;
 import com.compute.rental.modules.recharge.dto.AdminApproveRechargeRequest;
+import com.compute.rental.modules.recharge.dto.AdminRechargeChannelResponse;
 import com.compute.rental.modules.recharge.dto.AdminRejectRechargeRequest;
+import com.compute.rental.modules.recharge.dto.CreateRechargeChannelRequest;
 import com.compute.rental.modules.recharge.dto.CreateRechargeOrderRequest;
+import com.compute.rental.modules.recharge.dto.RechargeChannelQueryRequest;
 import com.compute.rental.modules.recharge.dto.RechargeChannelResponse;
 import com.compute.rental.modules.recharge.dto.RechargeOrderQueryRequest;
 import com.compute.rental.modules.recharge.dto.RechargeOrderResponse;
+import com.compute.rental.modules.recharge.dto.UpdateRechargeChannelRequest;
 import com.compute.rental.modules.system.service.SysConfigDefaults;
 import com.compute.rental.modules.system.service.SysConfigService;
 import com.compute.rental.modules.user.entity.AppUser;
@@ -76,6 +80,75 @@ public class RechargeService {
                 .stream()
                 .map(this::toChannelResponse)
                 .toList();
+    }
+
+    public PageResult<AdminRechargeChannelResponse> pageAdminChannels(RechargeChannelQueryRequest request) {
+        var page = new Page<RechargeChannel>(request.current(), request.size());
+        var wrapper = new LambdaQueryWrapper<RechargeChannel>()
+                .eq(request.status() != null, RechargeChannel::getStatus, request.status())
+                .orderByAsc(RechargeChannel::getSortNo)
+                .orderByDesc(RechargeChannel::getId);
+        var result = rechargeChannelMapper.selectPage(page, wrapper);
+        return new PageResult<>(result.getRecords().stream()
+                .map(this::toAdminChannelResponse)
+                .toList(),
+                result.getTotal(), result.getCurrent(), result.getSize());
+    }
+
+    @Transactional
+    public AdminRechargeChannelResponse createChannel(CreateRechargeChannelRequest request) {
+        validateAmountRange(request.minAmount(), request.maxAmount());
+        var now = DateTimeUtils.now();
+        var channel = new RechargeChannel();
+        applyCreateChannelRequest(channel, request);
+        channel.setCreatedAt(now);
+        channel.setUpdatedAt(now);
+        try {
+            rechargeChannelMapper.insert(channel);
+        } catch (DuplicateKeyException ex) {
+            throw new BusinessException(ErrorCode.IDEMPOTENCY_CONFLICT, "充值渠道编码重复");
+        }
+        return toAdminChannelResponse(channel);
+    }
+
+    @Transactional
+    public AdminRechargeChannelResponse updateChannel(Long id, UpdateRechargeChannelRequest request) {
+        requireChannel(id);
+        validateAmountRange(request.minAmount(), request.maxAmount());
+        int updated;
+        try {
+            updated = rechargeChannelMapper.update(null, new LambdaUpdateWrapper<RechargeChannel>()
+                    .eq(RechargeChannel::getId, id)
+                    .set(RechargeChannel::getChannelCode, trimToNull(request.channelCode()))
+                    .set(RechargeChannel::getChannelName, trimToNull(request.channelName()))
+                    .set(RechargeChannel::getNetwork, trimToNull(request.network()))
+                    .set(RechargeChannel::getDisplayUrl, trimToNull(request.displayUrl()))
+                    .set(RechargeChannel::getAccountName, trimToNull(request.accountName()))
+                    .set(RechargeChannel::getAccountNo, trimToNull(request.accountNo()))
+                    .set(RechargeChannel::getMinAmount, request.minAmount())
+                    .set(RechargeChannel::getMaxAmount, request.maxAmount())
+                    .set(RechargeChannel::getFeeRate, request.feeRate())
+                    .set(RechargeChannel::getSortNo, request.sortNo())
+                    .set(RechargeChannel::getStatus, request.status())
+                    .set(RechargeChannel::getUpdatedAt, DateTimeUtils.now()));
+        } catch (DuplicateKeyException ex) {
+            throw new BusinessException(ErrorCode.IDEMPOTENCY_CONFLICT, "充值渠道编码重复");
+        }
+        if (updated == 0) {
+            throw new BusinessException(ErrorCode.CONCURRENT_UPDATE_FAILED);
+        }
+        return toAdminChannelResponse(requireChannel(id));
+    }
+
+    @Transactional
+    public void deleteChannel(Long id) {
+        requireChannel(id);
+        var usedCount = rechargeOrderMapper.selectCount(new LambdaQueryWrapper<RechargeOrder>()
+                .eq(RechargeOrder::getChannelId, id));
+        if (usedCount > 0) {
+            throw new BusinessException(ErrorCode.BUSINESS_ERROR, "充值渠道已有订单引用，不能删除");
+        }
+        rechargeChannelMapper.deleteById(id);
     }
 
     @Transactional
@@ -246,6 +319,14 @@ public class RechargeService {
         return channel;
     }
 
+    private RechargeChannel requireChannel(Long channelId) {
+        var channel = rechargeChannelMapper.selectById(channelId);
+        if (channel == null) {
+            throw new BusinessException(ErrorCode.NOT_FOUND, "充值渠道不存在");
+        }
+        return channel;
+    }
+
     private UserWallet requireWallet(Long userId) {
         var wallet = userWalletMapper.selectOne(new LambdaQueryWrapper<UserWallet>()
                 .eq(UserWallet::getUserId, userId)
@@ -314,8 +395,49 @@ public class RechargeService {
                 channel.getAccountName(),
                 channel.getAccountNo(),
                 channel.getMinAmount(),
-                channel.getMaxAmount()
+                channel.getMaxAmount(),
+                channel.getFeeRate(),
+                channel.getSortNo()
         );
+    }
+
+    private AdminRechargeChannelResponse toAdminChannelResponse(RechargeChannel channel) {
+        return new AdminRechargeChannelResponse(
+                channel.getId(),
+                channel.getChannelCode(),
+                channel.getChannelName(),
+                channel.getNetwork(),
+                channel.getDisplayUrl(),
+                channel.getAccountName(),
+                channel.getAccountNo(),
+                channel.getMinAmount(),
+                channel.getMaxAmount(),
+                channel.getFeeRate(),
+                channel.getSortNo(),
+                channel.getStatus(),
+                channel.getCreatedAt(),
+                channel.getUpdatedAt()
+        );
+    }
+
+    private void applyCreateChannelRequest(RechargeChannel channel, CreateRechargeChannelRequest request) {
+        channel.setChannelCode(trimToNull(request.channelCode()));
+        channel.setChannelName(trimToNull(request.channelName()));
+        channel.setNetwork(trimToNull(request.network()));
+        channel.setDisplayUrl(trimToNull(request.displayUrl()));
+        channel.setAccountName(trimToNull(request.accountName()));
+        channel.setAccountNo(trimToNull(request.accountNo()));
+        channel.setMinAmount(request.minAmount());
+        channel.setMaxAmount(request.maxAmount());
+        channel.setFeeRate(request.feeRate());
+        channel.setSortNo(request.sortNo());
+        channel.setStatus(request.status());
+    }
+
+    private void validateAmountRange(BigDecimal minAmount, BigDecimal maxAmount) {
+        if (minAmount != null && maxAmount != null && minAmount.compareTo(maxAmount) > 0) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST, "最小充值金额不能大于最大充值金额");
+        }
     }
 
     private RechargeOrderResponse toOrderResponse(RechargeOrder order) {
@@ -353,7 +475,7 @@ public class RechargeService {
 
     private String userName(Long userId) {
         var user = userId == null ? null : appUserMapper.selectById(userId);
-        return user == null ? null : user.getNickname();
+        return user == null ? null : user.getUserName();
     }
 
     private Map<Long, String> userNameMap(List<Long> userIds) {
@@ -363,7 +485,7 @@ public class RechargeService {
         }
         var userNames = new HashMap<Long, String>();
         for (var user : appUserMapper.selectBatchIds(ids)) {
-            userNames.put(user.getId(), user.getNickname());
+            userNames.put(user.getId(), user.getUserName());
         }
         return userNames;
     }

@@ -4,7 +4,7 @@ public record UserMeResponse(
         Long id,
         String userId,
         String email,
-        String nickname,
+        String userName,
         Integer status
 ) {
 }

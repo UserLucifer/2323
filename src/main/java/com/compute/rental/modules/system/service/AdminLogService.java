@@ -16,6 +16,20 @@ public class AdminLogService {
     public static final String UPDATE_SYS_CONFIG = "UPDATE_SYS_CONFIG";
     public static final String RUN_SCHEDULER = "RUN_SCHEDULER";
 
+    public static String actionName(String action) {
+        if (action == null) {
+            return null;
+        }
+        return switch (action) {
+            case ADMIN_LOGIN_SUCCESS -> "\u7ba1\u7406\u5458\u767b\u5f55\u6210\u529f";
+            case ADMIN_LOGIN_FAIL -> "\u7ba1\u7406\u5458\u767b\u5f55\u5931\u8d25";
+            case ADMIN_LOGOUT -> "\u7ba1\u7406\u5458\u9000\u51fa\u767b\u5f55";
+            case UPDATE_SYS_CONFIG -> "\u66f4\u65b0\u7cfb\u7edf\u914d\u7f6e";
+            case RUN_SCHEDULER -> "\u6267\u884c\u5b9a\u65f6\u4efb\u52a1";
+            default -> action;
+        };
+    }
+
     private final SysAdminLogMapper sysAdminLogMapper;
 
     public AdminLogService(SysAdminLogMapper sysAdminLogMapper) {

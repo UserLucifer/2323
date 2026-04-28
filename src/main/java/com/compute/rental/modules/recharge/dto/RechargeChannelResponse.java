@@ -11,6 +11,8 @@ public record RechargeChannelResponse(
         String accountName,
         String accountNo,
         BigDecimal minAmount,
-        BigDecimal maxAmount
+        BigDecimal maxAmount,
+        BigDecimal feeRate,
+        Integer sortNo
 ) {
 }

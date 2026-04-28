@@ -170,14 +170,14 @@ public class AdminBusinessQueryService {
                 .toList(), result.getTotal(), result.getCurrent(), result.getSize());
     }
 
-    public UserWallet getWalletByUser(Long userId) {
+    public AdminWalletResponse getWalletByUser(Long userId) {
         var wallet = userWalletMapper.selectOne(new LambdaQueryWrapper<UserWallet>()
                 .eq(UserWallet::getUserId, userId)
                 .last("LIMIT 1"));
         if (wallet == null) {
             throw new BusinessException(ErrorCode.NOT_FOUND, "钱包不存在");
         }
-        return wallet;
+        return walletResponse(wallet, userName(wallet.getUserId()));
     }
 
     public PageResult<WalletTransaction> pageWalletTransactions(
@@ -256,7 +256,7 @@ public class AdminBusinessQueryService {
         var deployOrder = apiDeployOrderMapper.selectOne(new LambdaQueryWrapper<ApiDeployOrder>()
                 .eq(ApiDeployOrder::getRentalOrderId, order.getId())
                 .last("LIMIT 1"));
-        return rentalOrderResponse(order, user == null ? null : user.getNickname(), credential,
+        return rentalOrderResponse(order, user == null ? null : user.getUserName(), credential,
                 deployOrder == null ? null : deployOrder.getStatus());
     }
 
@@ -499,6 +499,7 @@ public class AdminBusinessQueryService {
                 .le(endTime != null, SysAdminLog::getCreatedAt, endTime)
                 .orderByDesc(SysAdminLog::getId);
         var result = adminLogMapper.selectPage(page, wrapper);
+        result.getRecords().forEach(this::fillAdminLogDisplayFields);
         return new PageResult<>(result.getRecords(), result.getTotal(), result.getCurrent(), result.getSize());
     }
 
@@ -507,7 +508,14 @@ public class AdminBusinessQueryService {
         if (log == null) {
             throw new BusinessException(ErrorCode.NOT_FOUND, "管理员日志不存在");
         }
+        fillAdminLogDisplayFields(log);
         return log;
+    }
+
+    private void fillAdminLogDisplayFields(SysAdminLog log) {
+        if (log != null) {
+            log.setActionName(AdminLogService.actionName(log.getAction()));
+        }
     }
 
     private AppUser requireUser(Long id) {
@@ -533,7 +541,7 @@ public class AdminBusinessQueryService {
                 user.getId(),
                 user.getUserId(),
                 user.getEmail(),
-                user.getNickname(),
+                user.getUserName(),
                 user.getStatus(),
                 user.getEmailVerifiedAt(),
                 user.getLastLoginAt(),
@@ -541,12 +549,12 @@ public class AdminBusinessQueryService {
                 user.getUpdatedAt());
     }
 
-    private AdminWalletResponse walletResponse(UserWallet wallet, String nickname) {
+    private AdminWalletResponse walletResponse(UserWallet wallet, String userName) {
         return new AdminWalletResponse(
                 wallet.getId(),
                 wallet.getWalletNo(),
                 wallet.getUserId(),
-                nickname,
+                userName,
                 wallet.getCurrency(),
                 wallet.getAvailableBalance(),
                 wallet.getFrozenBalance(),
@@ -675,7 +683,7 @@ public class AdminBusinessQueryService {
 
     private String userName(Long userId) {
         var user = userId == null ? null : appUserMapper.selectById(userId);
-        return user == null ? null : user.getNickname();
+        return user == null ? null : user.getUserName();
     }
 
     private Map<Long, String> userNameMap(List<Long> userIds) {
@@ -685,7 +693,7 @@ public class AdminBusinessQueryService {
         }
         var userNames = new HashMap<Long, String>();
         for (var user : appUserMapper.selectBatchIds(ids)) {
-            userNames.put(user.getId(), user.getNickname());
+            userNames.put(user.getId(), user.getUserName());
         }
         return userNames;
     }

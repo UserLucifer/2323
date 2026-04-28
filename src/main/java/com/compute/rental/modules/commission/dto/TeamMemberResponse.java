@@ -8,7 +8,6 @@ public record TeamMemberResponse(
         @Schema(description = "用户名称")
         String userName,
         String email,
-        String nickname,
         Integer status,
         Integer levelDepth,
         LocalDateTime createdAt

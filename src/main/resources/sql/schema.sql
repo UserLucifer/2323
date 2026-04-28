@@ -8,7 +8,7 @@ CREATE TABLE `app_user` (
   `user_id`           VARCHAR(64) NOT NULL COMMENT '用户编号，业务唯一标识',
   `email`             VARCHAR(128) NOT NULL COMMENT '邮箱，唯一',
   `password_hash`     VARCHAR(255) DEFAULT NULL COMMENT '登录密码哈希',
-  `nickname`          VARCHAR(64) DEFAULT NULL COMMENT '用户昵称',
+  `user_name`         VARCHAR(64) DEFAULT NULL COMMENT '用户名称',
   `status`            TINYINT NOT NULL DEFAULT 1 COMMENT '状态：1-正常，0-禁用',
   `email_verified_at` DATETIME DEFAULT NULL COMMENT '邮箱验证时间',
   `last_login_at`     DATETIME DEFAULT NULL COMMENT '最后登录时间',
@@ -131,6 +131,7 @@ CREATE TABLE `recharge_channel` (
   `account_no`   VARCHAR(255) DEFAULT NULL COMMENT '收款地址',
   `min_amount`   DECIMAL(20,8) DEFAULT NULL COMMENT '渠道最小充值金额（与全局配置取较大值）',
   `max_amount`   DECIMAL(20,8) DEFAULT NULL COMMENT '最大充值金额',
+  `fee_rate`     DECIMAL(12,8) NOT NULL DEFAULT 0.00000000 COMMENT '充值手续费率',
   `sort_no`      INT NOT NULL DEFAULT 0 COMMENT '排序号',
   `status`       TINYINT NOT NULL DEFAULT 1 COMMENT '状态：1-启用，0-停用',
   `created_at`   DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
@@ -567,7 +568,7 @@ CREATE TABLE `sys_config` (
 
 CREATE TABLE `sys_admin` (
   `id`            BIGINT NOT NULL AUTO_INCREMENT COMMENT '主键ID',
-  `username`      VARCHAR(64) NOT NULL COMMENT '管理员登录名，唯一',
+  `user_name`     VARCHAR(64) NOT NULL COMMENT '管理员登录名，唯一',
   `password_hash` VARCHAR(255) NOT NULL COMMENT '后台登录密码哈希',
   `role`          VARCHAR(20) NOT NULL DEFAULT 'ADMIN' COMMENT '角色：SUPER_ADMIN-超级管理员，ADMIN-普通管理员',
   `status`        TINYINT NOT NULL DEFAULT 1 COMMENT '状态：1-正常，0-禁用F',
@@ -576,7 +577,7 @@ CREATE TABLE `sys_admin` (
   `created_at`    DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
   `updated_at`    DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
   PRIMARY KEY (`id`),
-  UNIQUE KEY `uk_username` (`username`),
+  UNIQUE KEY `uk_user_name` (`user_name`),
   KEY `idx_role` (`role`),
   KEY `idx_status` (`status`),
   KEY `idx_created_by` (`created_by`)

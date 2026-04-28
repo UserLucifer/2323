@@ -11,7 +11,7 @@ public record AdminRentalOrderDetailResponse(
         String orderNo,
         @Schema(description = "User internal ID")
         Long userId,
-        @Schema(description = "User nickname")
+        @Schema(description = "User name")
         String userName,
         @Schema(description = "Product internal ID")
         Long productId,

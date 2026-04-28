@@ -45,13 +45,13 @@ public class AuthController {
         return ApiResponse.success();
     }
 
-    @Operation(summary = "Signup with email code, username and password")
+    @Operation(summary = "Signup with email code, user name and password")
     @PostMapping("/signup")
     public ApiResponse<LoginResponse> signup(@Valid @RequestBody SignupRequest request) {
         return ApiResponse.success(authService.signup(request));
     }
 
-    @Operation(summary = "Register with email code, username and password")
+    @Operation(summary = "Register with email code, user name and password")
     @PostMapping("/register")
     public ApiResponse<LoginResponse> register(@Valid @RequestBody SignupRequest request) {
         return ApiResponse.success(authService.signup(request));

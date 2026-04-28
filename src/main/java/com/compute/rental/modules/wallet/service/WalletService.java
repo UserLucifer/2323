@@ -454,7 +454,7 @@ public class WalletService {
 
     private String userName(Long userId) {
         var user = userId == null ? null : appUserMapper.selectById(userId);
-        return user == null ? null : user.getNickname();
+        return user == null ? null : user.getUserName();
     }
 
     private Map<Long, String> userNameMap(List<Long> userIds) {
@@ -464,7 +464,7 @@ public class WalletService {
         }
         var userNames = new HashMap<Long, String>();
         for (var user : appUserMapper.selectBatchIds(ids)) {
-            userNames.put(user.getId(), user.getNickname());
+            userNames.put(user.getId(), user.getUserName());
         }
         return userNames;
     }

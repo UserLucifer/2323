@@ -25,9 +25,6 @@ public class CommissionRecord {
     @TableField(exist = false)
     private String userName;
 
-    @TableField(exist = false)
-    private String nickname;
-
     @TableField("source_order_id")
     private Long sourceOrderId;
 
@@ -102,14 +99,6 @@ public class CommissionRecord {
 
     public void setUserName(String userName) {
         this.userName = userName;
-    }
-
-    public String getNickname() {
-        return nickname;
-    }
-
-    public void setNickname(String nickname) {
-        this.nickname = nickname;
     }
 
     public Long getSourceOrderId() {

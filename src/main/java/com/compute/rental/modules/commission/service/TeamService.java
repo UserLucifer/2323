@@ -57,7 +57,7 @@ public class TeamService {
     private TeamMemberResponse toMemberResponse(UserTeamRelation relation) {
         var user = appUserMapper.selectById(relation.getDescendantUserId());
         if (user == null) {
-            return new TeamMemberResponse(null, null, null, null, null, relation.getLevelDepth(), relation.getCreatedAt());
+            return new TeamMemberResponse(null, null, null, null, relation.getLevelDepth(), relation.getCreatedAt());
         }
         return toMemberResponse(user, relation);
     }
@@ -65,9 +65,8 @@ public class TeamService {
     private TeamMemberResponse toMemberResponse(AppUser user, UserTeamRelation relation) {
         return new TeamMemberResponse(
                 user.getUserId(),
-                user.getNickname(),
+                user.getUserName(),
                 user.getEmail(),
-                user.getNickname(),
                 user.getStatus(),
                 relation.getLevelDepth(),
                 relation.getCreatedAt()

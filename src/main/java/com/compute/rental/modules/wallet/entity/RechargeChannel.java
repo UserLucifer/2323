@@ -37,6 +37,9 @@ public class RechargeChannel {
     @TableField("max_amount")
     private BigDecimal maxAmount;
 
+    @TableField("fee_rate")
+    private BigDecimal feeRate;
+
     @TableField("sort_no")
     private Integer sortNo;
 
@@ -119,6 +122,14 @@ public class RechargeChannel {
 
     public void setMaxAmount(BigDecimal maxAmount) {
         this.maxAmount = maxAmount;
+    }
+
+    public BigDecimal getFeeRate() {
+        return feeRate;
+    }
+
+    public void setFeeRate(BigDecimal feeRate) {
+        this.feeRate = feeRate;
     }
 
     public Integer getSortNo() {

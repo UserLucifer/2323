@@ -11,8 +11,8 @@ public record AdminWalletResponse(
         String walletNo,
         @Schema(description = "User internal ID")
         Long userId,
-        @Schema(description = "User nickname")
-        String nickname,
+        @Schema(description = "User name")
+        String userName,
         @Schema(description = "Currency code")
         String currency,
         @Schema(description = "Available balance")

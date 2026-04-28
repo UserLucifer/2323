@@ -39,9 +39,9 @@ public class AdminAuthService {
 
     @Transactional
     public AdminLoginResponse login(AdminLoginRequest request, String ip) {
-        var username = request.username().trim();
+        var userName = request.userName().trim();
         var admin = sysAdminMapper.selectOne(new LambdaQueryWrapper<SysAdmin>()
-                .eq(SysAdmin::getUsername, username)
+                .eq(SysAdmin::getUserName, userName)
                 .last("LIMIT 1"));
         if (admin == null) {
             throw new BusinessException(ErrorCode.UNAUTHORIZED, "用户名或密码错误");
@@ -67,7 +67,7 @@ public class AdminAuthService {
                 null, null, "Admin login success", ip);
         var token = jwtTokenProvider.createAccessToken(
                 admin.getId(),
-                admin.getUsername(),
+                admin.getUserName(),
                 admin.getRole(),
                 IdentityType.ADMIN
         );
@@ -98,8 +98,7 @@ public class AdminAuthService {
     private AdminMeResponse toMe(SysAdmin admin) {
         return new AdminMeResponse(
                 admin.getId(),
-                admin.getUsername(),
-                admin.getNickname(),
+                admin.getUserName(),
                 admin.getStatus(),
                 admin.getRole()
         );

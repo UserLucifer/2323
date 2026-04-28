@@ -12,14 +12,11 @@ public class SysAdmin {
     @TableId(value = "id", type = IdType.AUTO)
     private Long id;
 
-    @TableField("username")
-    private String username;
+    @TableField("user_name")
+    private String userName;
 
     @TableField("password_hash")
     private String passwordHash;
-
-    @TableField("nickname")
-    private String nickname;
 
     @TableField("role")
     private String role;
@@ -47,12 +44,12 @@ public class SysAdmin {
         this.id = id;
     }
 
-    public String getUsername() {
-        return username;
+    public String getUserName() {
+        return userName;
     }
 
-    public void setUsername(String username) {
-        this.username = username;
+    public void setUserName(String userName) {
+        this.userName = userName;
     }
 
     public String getPasswordHash() {
@@ -61,14 +58,6 @@ public class SysAdmin {
 
     public void setPasswordHash(String passwordHash) {
         this.passwordHash = passwordHash;
-    }
-
-    public String getNickname() {
-        return nickname;
-    }
-
-    public void setNickname(String nickname) {
-        this.nickname = nickname;
     }
 
     public String getRole() {

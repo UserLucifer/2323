@@ -16,13 +16,13 @@ public class UserTeamRelation {
     private Long ancestorUserId;
 
     @TableField(exist = false)
-    private String ancestorNickname;
+    private String ancestorUserName;
 
     @TableField("descendant_user_id")
     private Long descendantUserId;
 
     @TableField(exist = false)
-    private String descendantNickname;
+    private String descendantUserName;
 
     @TableField("level_depth")
     private Integer levelDepth;
@@ -46,12 +46,12 @@ public class UserTeamRelation {
         this.ancestorUserId = ancestorUserId;
     }
 
-    public String getAncestorNickname() {
-        return ancestorNickname;
+    public String getAncestorUserName() {
+        return ancestorUserName;
     }
 
-    public void setAncestorNickname(String ancestorNickname) {
-        this.ancestorNickname = ancestorNickname;
+    public void setAncestorUserName(String ancestorUserName) {
+        this.ancestorUserName = ancestorUserName;
     }
 
     public Long getDescendantUserId() {
@@ -62,12 +62,12 @@ public class UserTeamRelation {
         this.descendantUserId = descendantUserId;
     }
 
-    public String getDescendantNickname() {
-        return descendantNickname;
+    public String getDescendantUserName() {
+        return descendantUserName;
     }
 
-    public void setDescendantNickname(String descendantNickname) {
-        this.descendantNickname = descendantNickname;
+    public void setDescendantUserName(String descendantUserName) {
+        this.descendantUserName = descendantUserName;
     }
 
     public Integer getLevelDepth() {

@@ -21,6 +21,9 @@ public class SysAdminLog {
     @TableField("action")
     private String action;
 
+    @TableField(exist = false)
+    private String actionName;
+
     @TableField("target_table")
     private String targetTable;
 
@@ -72,6 +75,14 @@ public class SysAdminLog {
 
     public void setAction(String action) {
         this.action = action;
+    }
+
+    public String getActionName() {
+        return actionName;
+    }
+
+    public void setActionName(String actionName) {
+        this.actionName = actionName;
     }
 
     public String getTargetTable() {

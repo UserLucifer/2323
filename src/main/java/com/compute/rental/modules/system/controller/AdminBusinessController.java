@@ -16,7 +16,6 @@ import com.compute.rental.modules.system.entity.SysAdminLog;
 import com.compute.rental.modules.system.service.AdminBusinessQueryService;
 import com.compute.rental.modules.system.service.AdminLogService;
 import com.compute.rental.modules.user.entity.UserTeamRelation;
-import com.compute.rental.modules.wallet.entity.UserWallet;
 import com.compute.rental.modules.wallet.entity.WalletTransaction;
 import com.compute.rental.security.CurrentUser;
 import io.swagger.v3.oas.annotations.Operation;
@@ -98,7 +97,7 @@ public class AdminBusinessController {
 
     @Operation(summary = "Admin wallet by user")
     @GetMapping("/wallets/{userId}")
-    public ApiResponse<UserWallet> wallet(@PathVariable Long userId) {
+    public ApiResponse<AdminWalletResponse> wallet(@PathVariable Long userId) {
         return ApiResponse.success(adminBusinessQueryService.getWalletByUser(userId));
     }
 

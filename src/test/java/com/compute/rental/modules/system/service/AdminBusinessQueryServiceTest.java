@@ -129,7 +129,7 @@ class AdminBusinessQueryServiceTest {
         order.setOrderNo("RO001");
         var user = new AppUser();
         user.setId(10L);
-        user.setNickname("Alice");
+        user.setUserName("Alice");
 
         when(rentalOrderMapper.selectOne(any())).thenReturn(order);
         when(apiCredentialMapper.selectOne(any())).thenReturn(null);

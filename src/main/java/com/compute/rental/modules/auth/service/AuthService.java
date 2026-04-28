@@ -148,7 +148,7 @@ public class AuthService {
         verifyEmailCode(email, request.code(), EmailVerifyScene.SIGNUP, true);
         var user = registerUser(
                 email,
-                normalizeUsername(request.username()),
+                normalizeUserName(request.userName()),
                 passwordEncoder.encode(request.password()),
                 normalizeInviteCode(request.inviteCode())
         );
@@ -173,7 +173,7 @@ public class AuthService {
         return new LoginResponse(
                 token,
                 "Bearer",
-                new LoginResponse.UserProfile(user.getId(), user.getUserId(), user.getEmail(), user.getNickname())
+                new LoginResponse.UserProfile(user.getId(), user.getUserId(), user.getEmail(), user.getUserName())
         );
     }
 
@@ -229,7 +229,7 @@ public class AuthService {
         emailVerifyCodeMapper.updateById(code);
     }
 
-    private AppUser registerUser(String email, String username, String passwordHash, String inviteCode) {
+    private AppUser registerUser(String email, String userName, String passwordHash, String inviteCode) {
         var now = DateTimeUtils.now();
         var parentReferral = findParentReferral(inviteCode);
 
@@ -237,7 +237,7 @@ public class AuthService {
         user.setUserId(generateUserNo());
         user.setEmail(email);
         user.setPasswordHash(passwordHash);
-        user.setNickname(username);
+        user.setUserName(userName);
         user.setStatus(CommonStatus.ENABLED.value());
         user.setEmailVerifiedAt(now);
         user.setCreatedAt(now);
@@ -352,8 +352,8 @@ public class AuthService {
         return StringUtils.hasText(inviteCode) ? inviteCode.trim().toUpperCase(Locale.ROOT) : null;
     }
 
-    private String normalizeUsername(String username) {
-        return username.trim();
+    private String normalizeUserName(String userName) {
+        return userName.trim();
     }
 
     private String generateUserNo() {
