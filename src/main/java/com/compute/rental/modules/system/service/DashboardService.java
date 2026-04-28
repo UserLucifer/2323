@@ -26,12 +26,17 @@ import com.compute.rental.modules.wallet.entity.WithdrawOrder;
 import com.compute.rental.modules.wallet.mapper.RechargeOrderMapper;
 import com.compute.rental.modules.wallet.mapper.UserWalletMapper;
 import com.compute.rental.modules.wallet.mapper.WithdrawOrderMapper;
+import com.compute.rental.modules.system.dto.DashboardFinanceResponse;
+import com.compute.rental.modules.system.dto.DashboardOrdersResponse;
+import com.compute.rental.modules.system.dto.DashboardOverviewResponse;
+import com.compute.rental.modules.system.dto.DashboardStatusCountResponse;
+import com.compute.rental.modules.system.dto.DashboardUsersResponse;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
-import java.util.LinkedHashMap;
-import java.util.Map;
+import java.util.Arrays;
+import java.util.List;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -66,67 +71,63 @@ public class DashboardService {
         this.commissionRecordMapper = commissionRecordMapper;
     }
 
-    public Map<String, Object> overview() {
-        var result = new LinkedHashMap<String, Object>();
-        result.put("total_users", appUserMapper.selectCount(null));
-        result.put("active_users", countUsers(CommonStatus.ENABLED.value()));
-        result.put("disabled_users", countUsers(CommonStatus.DISABLED.value()));
-        result.put("total_recharge_amount", totalRechargeAmount());
-        result.put("total_withdraw_amount", totalWithdrawAmount());
-        result.put("total_order_amount", totalOrderAmount());
-        result.put("total_profit_amount", totalProfitAmount());
-        result.put("total_commission_amount", totalCommissionAmount());
-        result.put("running_order_count", countOrdersByStatus(RentalOrderStatus.RUNNING.name()));
-        result.put("pending_recharge_count", countRechargeByStatus(RechargeOrderStatus.SUBMITTED.name()));
-        result.put("pending_withdraw_count", countWithdrawByStatus(WithdrawOrderStatus.PENDING_REVIEW.name()));
-        return result;
+    public DashboardOverviewResponse overview() {
+        return new DashboardOverviewResponse(
+                appUserMapper.selectCount(null),
+                countUsers(CommonStatus.ENABLED.value()),
+                countUsers(CommonStatus.DISABLED.value()),
+                totalRechargeAmount(),
+                totalWithdrawAmount(),
+                totalOrderAmount(),
+                totalProfitAmount(),
+                totalCommissionAmount(),
+                countOrdersByStatus(RentalOrderStatus.RUNNING.name()),
+                countRechargeByStatus(RechargeOrderStatus.SUBMITTED.name()),
+                countWithdrawByStatus(WithdrawOrderStatus.PENDING_REVIEW.name()));
     }
 
-    public Map<String, Object> finance() {
+    public DashboardFinanceResponse finance() {
         var today = DateTimeUtils.today();
-        var result = new LinkedHashMap<String, Object>();
-        result.put("today_recharge_amount", todayRechargeAmount(today));
-        result.put("today_withdraw_amount", todayWithdrawAmount(today));
-        result.put("today_profit_amount", todayProfitAmount(today));
-        result.put("today_commission_amount", todayCommissionAmount(today));
-        result.put("wallet_total_available_balance", walletAvailableBalance());
-        result.put("wallet_total_frozen_balance", walletFrozenBalance());
-        return result;
+        return new DashboardFinanceResponse(
+                todayRechargeAmount(today),
+                todayWithdrawAmount(today),
+                todayProfitAmount(today),
+                todayCommissionAmount(today),
+                walletAvailableBalance(),
+                walletFrozenBalance());
     }
 
-    public Map<String, Object> orders() {
+    public DashboardOrdersResponse orders() {
         var todayRange = todayRange();
-        var result = new LinkedHashMap<String, Object>();
-        result.put("order_status_counts", orderStatusCounts());
-        result.put("profit_status_counts", profitStatusCounts());
-        result.put("today_new_order_count", rentalOrderMapper.selectCount(new LambdaQueryWrapper<RentalOrder>()
-                .ge(RentalOrder::getCreatedAt, todayRange.start())
-                .le(RentalOrder::getCreatedAt, todayRange.end())));
-        result.put("today_paid_order_count", rentalOrderMapper.selectCount(new LambdaQueryWrapper<RentalOrder>()
-                .ge(RentalOrder::getPaidAt, todayRange.start())
-                .le(RentalOrder::getPaidAt, todayRange.end())));
-        result.put("running_order_count", countOrdersByStatus(RentalOrderStatus.RUNNING.name()));
-        result.put("paused_order_count", countOrdersByStatus(RentalOrderStatus.PAUSED.name()));
-        return result;
+        return new DashboardOrdersResponse(
+                orderStatusCounts(),
+                profitStatusCounts(),
+                rentalOrderMapper.selectCount(new LambdaQueryWrapper<RentalOrder>()
+                        .ge(RentalOrder::getCreatedAt, todayRange.start())
+                        .le(RentalOrder::getCreatedAt, todayRange.end())),
+                rentalOrderMapper.selectCount(new LambdaQueryWrapper<RentalOrder>()
+                        .ge(RentalOrder::getPaidAt, todayRange.start())
+                        .le(RentalOrder::getPaidAt, todayRange.end())),
+                countOrdersByStatus(RentalOrderStatus.RUNNING.name()),
+                countOrdersByStatus(RentalOrderStatus.PAUSED.name()));
     }
 
-    public Map<String, Object> users() {
+    public DashboardUsersResponse users() {
         var todayRange = todayRange();
         var monthStart = DateTimeUtils.today().withDayOfMonth(1).atStartOfDay();
-        var result = new LinkedHashMap<String, Object>();
-        result.put("today_new_users", appUserMapper.selectCount(new LambdaQueryWrapper<AppUser>()
-                .ge(AppUser::getCreatedAt, todayRange.start())
-                .le(AppUser::getCreatedAt, todayRange.end())));
-        result.put("current_month_new_users", appUserMapper.selectCount(new LambdaQueryWrapper<AppUser>()
-                .ge(AppUser::getCreatedAt, monthStart)
-                .le(AppUser::getCreatedAt, todayRange.end())));
-        result.put("active_users", countUsers(CommonStatus.ENABLED.value()));
-        result.put("disabled_users", countUsers(CommonStatus.DISABLED.value()));
-        result.put("users_with_parent", referralRelationMapper.selectCount(new LambdaQueryWrapper<UserReferralRelation>()
-                .isNotNull(UserReferralRelation::getParentUserId)));
-        result.put("users_without_parent", referralRelationMapper.selectCount(new LambdaQueryWrapper<UserReferralRelation>()
-                .isNull(UserReferralRelation::getParentUserId)));
-        return result;
+        return new DashboardUsersResponse(
+                appUserMapper.selectCount(new LambdaQueryWrapper<AppUser>()
+                        .ge(AppUser::getCreatedAt, todayRange.start())
+                        .le(AppUser::getCreatedAt, todayRange.end())),
+                appUserMapper.selectCount(new LambdaQueryWrapper<AppUser>()
+                        .ge(AppUser::getCreatedAt, monthStart)
+                        .le(AppUser::getCreatedAt, todayRange.end())),
+                countUsers(CommonStatus.ENABLED.value()),
+                countUsers(CommonStatus.DISABLED.value()),
+                referralRelationMapper.selectCount(new LambdaQueryWrapper<UserReferralRelation>()
+                        .isNotNull(UserReferralRelation::getParentUserId)),
+                referralRelationMapper.selectCount(new LambdaQueryWrapper<UserReferralRelation>()
+                        .isNull(UserReferralRelation::getParentUserId)));
     }
 
     private Long countUsers(Integer status) {
@@ -246,21 +247,17 @@ public class DashboardService {
         return MoneyUtils.scale(sum);
     }
 
-    private Map<String, Long> orderStatusCounts() {
-        var result = new LinkedHashMap<String, Long>();
-        for (var status : RentalOrderStatus.values()) {
-            result.put(status.name(), countOrdersByStatus(status.name()));
-        }
-        return result;
+    private List<DashboardStatusCountResponse> orderStatusCounts() {
+        return Arrays.stream(RentalOrderStatus.values())
+                .map(status -> new DashboardStatusCountResponse(status.name(), countOrdersByStatus(status.name())))
+                .toList();
     }
 
-    private Map<String, Long> profitStatusCounts() {
-        var result = new LinkedHashMap<String, Long>();
-        for (var status : ProfitStatus.values()) {
-            result.put(status.name(), rentalOrderMapper.selectCount(new LambdaQueryWrapper<RentalOrder>()
-                    .eq(RentalOrder::getProfitStatus, status.name())));
-        }
-        return result;
+    private List<DashboardStatusCountResponse> profitStatusCounts() {
+        return Arrays.stream(ProfitStatus.values())
+                .map(status -> new DashboardStatusCountResponse(status.name(), rentalOrderMapper.selectCount(
+                        new LambdaQueryWrapper<RentalOrder>().eq(RentalOrder::getProfitStatus, status.name()))))
+                .toList();
     }
 
     private DateRange todayRange() {

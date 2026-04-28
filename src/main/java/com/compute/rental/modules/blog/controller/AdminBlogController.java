@@ -4,6 +4,7 @@ import com.compute.rental.common.api.ApiResponse;
 import com.compute.rental.common.enums.CommonStatus;
 import com.compute.rental.common.page.PageResult;
 import com.compute.rental.modules.blog.dto.BlogPostRequest;
+import com.compute.rental.modules.blog.dto.BlogPostResponse;
 import com.compute.rental.modules.blog.entity.BlogCategory;
 import com.compute.rental.modules.blog.entity.BlogTag;
 import com.compute.rental.modules.blog.service.BlogService;
@@ -13,7 +14,6 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
 import java.time.LocalDateTime;
-import java.util.Map;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -127,7 +127,7 @@ public class AdminBlogController {
 
     @Operation(summary = "Admin blog posts")
     @GetMapping("/posts")
-    public ApiResponse<PageResult<Map<String, Object>>> posts(
+    public ApiResponse<PageResult<BlogPostResponse>> posts(
             @RequestParam(defaultValue = "1") long pageNo,
             @RequestParam(defaultValue = "10") long pageSize,
             @RequestParam(required = false, name = "category_id") Long categoryId,
@@ -144,13 +144,13 @@ public class AdminBlogController {
 
     @Operation(summary = "Admin blog post detail")
     @GetMapping("/posts/{id}")
-    public ApiResponse<Map<String, Object>> post(@PathVariable Long id) {
+    public ApiResponse<BlogPostResponse> post(@PathVariable Long id) {
         return ApiResponse.success(blogService.adminPost(id));
     }
 
     @Operation(summary = "Create blog post")
     @PostMapping("/posts")
-    public ApiResponse<Map<String, Object>> createPost(
+    public ApiResponse<BlogPostResponse> createPost(
             @RequestBody BlogPostRequest request,
             HttpServletRequest httpRequest
     ) {
@@ -160,7 +160,7 @@ public class AdminBlogController {
 
     @Operation(summary = "Update blog post")
     @PutMapping("/posts/{id}")
-    public ApiResponse<Map<String, Object>> updatePost(
+    public ApiResponse<BlogPostResponse> updatePost(
             @PathVariable Long id,
             @RequestBody BlogPostRequest request,
             HttpServletRequest httpRequest
@@ -171,14 +171,14 @@ public class AdminBlogController {
 
     @Operation(summary = "Publish blog post")
     @PostMapping("/posts/{id}/publish")
-    public ApiResponse<Map<String, Object>> publishPost(@PathVariable Long id, HttpServletRequest httpRequest) {
+    public ApiResponse<BlogPostResponse> publishPost(@PathVariable Long id, HttpServletRequest httpRequest) {
         var admin = CurrentUser.requiredAdmin();
         return ApiResponse.success(blogService.publishPost(id, admin.id(), adminLogService.clientIp(httpRequest)));
     }
 
     @Operation(summary = "Unpublish blog post")
     @PostMapping("/posts/{id}/unpublish")
-    public ApiResponse<Map<String, Object>> unpublishPost(@PathVariable Long id, HttpServletRequest httpRequest) {
+    public ApiResponse<BlogPostResponse> unpublishPost(@PathVariable Long id, HttpServletRequest httpRequest) {
         var admin = CurrentUser.requiredAdmin();
         return ApiResponse.success(blogService.unpublishPost(id, admin.id(), adminLogService.clientIp(httpRequest)));
     }

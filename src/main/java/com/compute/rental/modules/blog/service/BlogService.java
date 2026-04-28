@@ -9,6 +9,7 @@ import com.compute.rental.common.enums.ErrorCode;
 import com.compute.rental.common.exception.BusinessException;
 import com.compute.rental.common.page.PageResult;
 import com.compute.rental.common.util.DateTimeUtils;
+import com.compute.rental.modules.blog.dto.BlogPostResponse;
 import com.compute.rental.modules.blog.dto.BlogPostRequest;
 import com.compute.rental.modules.blog.entity.BlogCategory;
 import com.compute.rental.modules.blog.entity.BlogPost;
@@ -21,9 +22,7 @@ import com.compute.rental.modules.blog.mapper.BlogTagMapper;
 import com.compute.rental.modules.system.service.AdminLogService;
 import java.time.LocalDateTime;
 import java.util.Collections;
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -65,13 +64,13 @@ public class BlogService {
                 .orderByDesc(BlogTag::getId));
     }
 
-    public PageResult<Map<String, Object>> publicPosts(long pageNo, long pageSize, Long categoryId, Long tagId,
-                                                       LocalDateTime startTime, LocalDateTime endTime) {
+    public PageResult<BlogPostResponse> publicPosts(long pageNo, long pageSize, Long categoryId, Long tagId,
+                                                    LocalDateTime startTime, LocalDateTime endTime) {
         return pagePosts(pageNo, pageSize, categoryId, tagId, BlogPublishStatus.PUBLISHED.value(),
                 startTime, endTime, true);
     }
 
-    public Map<String, Object> publicPost(Long id) {
+    public BlogPostResponse publicPost(Long id) {
         var post = postMapper.selectOne(new LambdaQueryWrapper<BlogPost>()
                 .eq(BlogPost::getId, id)
                 .eq(BlogPost::getPublishStatus, BlogPublishStatus.PUBLISHED.value())
@@ -82,7 +81,7 @@ public class BlogService {
         postMapper.update(null, new LambdaUpdateWrapper<BlogPost>()
                 .eq(BlogPost::getId, id)
                 .setSql("view_count = view_count + 1"));
-        return postMap(post);
+        return postResponse(post);
     }
 
     public PageResult<BlogCategory> adminCategories(long pageNo, long pageSize, Integer status) {
@@ -171,18 +170,18 @@ public class BlogService {
         return requireTag(id);
     }
 
-    public PageResult<Map<String, Object>> adminPosts(long pageNo, long pageSize, Long categoryId, Long tagId,
-                                                      Integer publishStatus, LocalDateTime startTime,
-                                                      LocalDateTime endTime) {
+    public PageResult<BlogPostResponse> adminPosts(long pageNo, long pageSize, Long categoryId, Long tagId,
+                                                   Integer publishStatus, LocalDateTime startTime,
+                                                   LocalDateTime endTime) {
         return pagePosts(pageNo, pageSize, categoryId, tagId, publishStatus, startTime, endTime, false);
     }
 
-    public Map<String, Object> adminPost(Long id) {
-        return postMap(requirePost(id));
+    public BlogPostResponse adminPost(Long id) {
+        return postResponse(requirePost(id));
     }
 
     @Transactional
-    public Map<String, Object> createPost(BlogPostRequest request, Long adminId, String ip) {
+    public BlogPostResponse createPost(BlogPostRequest request, Long adminId, String ip) {
         var now = DateTimeUtils.now();
         var post = new BlogPost();
         applyPostRequest(post, request);
@@ -197,22 +196,22 @@ public class BlogService {
         postMapper.insert(post);
         replaceTags(post.getId(), request.tagIds());
         log(adminId, "CREATE_BLOG_POST", "blog_post", post.getId(), post.getTitle(), ip);
-        return postMap(postMapper.selectById(post.getId()));
+        return postResponse(postMapper.selectById(post.getId()));
     }
 
     @Transactional
-    public Map<String, Object> updatePost(Long id, BlogPostRequest request, Long adminId, String ip) {
+    public BlogPostResponse updatePost(Long id, BlogPostRequest request, Long adminId, String ip) {
         var post = requirePost(id);
         applyPostRequest(post, request);
         post.setUpdatedAt(DateTimeUtils.now());
         postMapper.updateById(post);
         replaceTags(id, request.tagIds());
         log(adminId, "UPDATE_BLOG_POST", "blog_post", id, post.getTitle(), ip);
-        return postMap(requirePost(id));
+        return postResponse(requirePost(id));
     }
 
     @Transactional
-    public Map<String, Object> publishPost(Long id, Long adminId, String ip) {
+    public BlogPostResponse publishPost(Long id, Long adminId, String ip) {
         requirePost(id);
         var now = DateTimeUtils.now();
         postMapper.update(null, new LambdaUpdateWrapper<BlogPost>()
@@ -221,18 +220,18 @@ public class BlogService {
                 .set(BlogPost::getPublishedAt, now)
                 .set(BlogPost::getUpdatedAt, now));
         log(adminId, "PUBLISH_BLOG_POST", "blog_post", id, "published", ip);
-        return postMap(requirePost(id));
+        return postResponse(requirePost(id));
     }
 
     @Transactional
-    public Map<String, Object> unpublishPost(Long id, Long adminId, String ip) {
+    public BlogPostResponse unpublishPost(Long id, Long adminId, String ip) {
         requirePost(id);
         postMapper.update(null, new LambdaUpdateWrapper<BlogPost>()
                 .eq(BlogPost::getId, id)
                 .set(BlogPost::getPublishStatus, BlogPublishStatus.OFFLINE.value())
                 .set(BlogPost::getUpdatedAt, DateTimeUtils.now()));
         log(adminId, "UNPUBLISH_BLOG_POST", "blog_post", id, "offline", ip);
-        return postMap(requirePost(id));
+        return postResponse(requirePost(id));
     }
 
     @Transactional
@@ -243,9 +242,9 @@ public class BlogService {
         log(adminId, "DELETE_BLOG_POST", "blog_post", id, "deleted", ip);
     }
 
-    private PageResult<Map<String, Object>> pagePosts(long pageNo, long pageSize, Long categoryId, Long tagId,
-                                                      Integer publishStatus, LocalDateTime startTime,
-                                                      LocalDateTime endTime, boolean publicOnly) {
+    private PageResult<BlogPostResponse> pagePosts(long pageNo, long pageSize, Long categoryId, Long tagId,
+                                                   Integer publishStatus, LocalDateTime startTime,
+                                                   LocalDateTime endTime, boolean publicOnly) {
         var postIds = postIdsByTag(tagId);
         if (tagId != null && postIds.isEmpty()) {
             return new PageResult<>(Collections.emptyList(), 0, pageNo, pageSize);
@@ -263,7 +262,7 @@ public class BlogService {
                 .orderByDesc(BlogPost::getPublishedAt)
                 .orderByDesc(BlogPost::getId);
         var result = postMapper.selectPage(page, wrapper);
-        return new PageResult<>(result.getRecords().stream().map(this::postMap).toList(),
+        return new PageResult<>(result.getRecords().stream().map(this::postResponse).toList(),
                 result.getTotal(), result.getCurrent(), result.getSize());
     }
 
@@ -306,25 +305,24 @@ public class BlogService {
         }
     }
 
-    private Map<String, Object> postMap(BlogPost post) {
-        var result = new LinkedHashMap<String, Object>();
-        result.put("id", post.getId());
-        result.put("category_id", post.getCategoryId());
-        result.put("category_name", categoryName(post.getCategoryId()));
-        result.put("title", post.getTitle());
-        result.put("summary", post.getSummary());
-        result.put("cover_image_url", post.getCoverImageUrl());
-        result.put("content_markdown", post.getContentMarkdown());
-        result.put("publish_status", post.getPublishStatus());
-        result.put("published_at", post.getPublishedAt());
-        result.put("is_top", post.getIsTop());
-        result.put("sort_no", post.getSortNo());
-        result.put("view_count", post.getViewCount());
-        result.put("created_by", post.getCreatedBy());
-        result.put("tag_ids", tagIds(post.getId()));
-        result.put("created_at", post.getCreatedAt());
-        result.put("updated_at", post.getUpdatedAt());
-        return result;
+    private BlogPostResponse postResponse(BlogPost post) {
+        return new BlogPostResponse(
+                post.getId(),
+                post.getCategoryId(),
+                categoryName(post.getCategoryId()),
+                post.getTitle(),
+                post.getSummary(),
+                post.getCoverImageUrl(),
+                post.getContentMarkdown(),
+                post.getPublishStatus(),
+                post.getPublishedAt(),
+                post.getIsTop(),
+                post.getSortNo(),
+                post.getViewCount(),
+                post.getCreatedBy(),
+                tagIds(post.getId()),
+                post.getCreatedAt(),
+                post.getUpdatedAt());
     }
 
     private String categoryName(Long categoryId) {

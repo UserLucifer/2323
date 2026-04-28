@@ -2,6 +2,7 @@ package com.compute.rental.modules.blog.controller;
 
 import com.compute.rental.common.api.ApiResponse;
 import com.compute.rental.common.page.PageResult;
+import com.compute.rental.modules.blog.dto.BlogPostResponse;
 import com.compute.rental.modules.blog.entity.BlogCategory;
 import com.compute.rental.modules.blog.entity.BlogTag;
 import com.compute.rental.modules.blog.service.BlogService;
@@ -9,7 +10,6 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import java.time.LocalDateTime;
 import java.util.List;
-import java.util.Map;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -42,7 +42,7 @@ public class BlogController {
 
     @Operation(summary = "Public blog posts")
     @GetMapping("/posts")
-    public ApiResponse<PageResult<Map<String, Object>>> posts(
+    public ApiResponse<PageResult<BlogPostResponse>> posts(
             @RequestParam(defaultValue = "1") long pageNo,
             @RequestParam(defaultValue = "10") long pageSize,
             @RequestParam(required = false, name = "category_id") Long categoryId,
@@ -57,7 +57,7 @@ public class BlogController {
 
     @Operation(summary = "Public blog post detail")
     @GetMapping("/posts/{id}")
-    public ApiResponse<Map<String, Object>> post(@PathVariable Long id) {
+    public ApiResponse<BlogPostResponse> post(@PathVariable Long id) {
         return ApiResponse.success(blogService.publicPost(id));
     }
 }

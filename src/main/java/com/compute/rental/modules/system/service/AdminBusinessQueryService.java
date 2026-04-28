@@ -21,6 +21,11 @@ import com.compute.rental.modules.order.mapper.ApiDeployOrderMapper;
 import com.compute.rental.modules.order.mapper.RentalOrderMapper;
 import com.compute.rental.modules.order.mapper.RentalProfitRecordMapper;
 import com.compute.rental.modules.order.mapper.RentalSettlementOrderMapper;
+import com.compute.rental.modules.system.dto.AdminApiCredentialResponse;
+import com.compute.rental.modules.system.dto.AdminRentalOrderDetailResponse;
+import com.compute.rental.modules.system.dto.AdminUserResponse;
+import com.compute.rental.modules.system.dto.AdminUserTeamResponse;
+import com.compute.rental.modules.system.dto.AdminWalletResponse;
 import com.compute.rental.modules.system.entity.SysAdminLog;
 import com.compute.rental.modules.system.mapper.SysAdminLogMapper;
 import com.compute.rental.modules.user.entity.AppUser;
@@ -31,12 +36,10 @@ import com.compute.rental.modules.wallet.entity.UserWallet;
 import com.compute.rental.modules.wallet.entity.WalletTransaction;
 import com.compute.rental.modules.wallet.mapper.UserWalletMapper;
 import com.compute.rental.modules.wallet.mapper.WalletTransactionMapper;
-import java.lang.reflect.Modifier;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import org.springframework.stereotype.Service;
@@ -87,7 +90,7 @@ public class AdminBusinessQueryService {
         this.adminLogService = adminLogService;
     }
 
-    public PageResult<Map<String, Object>> pageUsers(
+    public PageResult<AdminUserResponse> pageUsers(
             long pageNo,
             long pageSize,
             String email,
@@ -105,16 +108,16 @@ public class AdminBusinessQueryService {
                 .le(endTime != null, AppUser::getCreatedAt, endTime)
                 .orderByDesc(AppUser::getId);
         var result = appUserMapper.selectPage(page, wrapper);
-        return new PageResult<>(result.getRecords().stream().map(this::userMap).toList(),
+        return new PageResult<>(result.getRecords().stream().map(this::userResponse).toList(),
                 result.getTotal(), result.getCurrent(), result.getSize());
     }
 
-    public Map<String, Object> getUser(Long id) {
-        return userMap(requireUser(id));
+    public AdminUserResponse getUser(Long id) {
+        return userResponse(requireUser(id));
     }
 
     @Transactional
-    public Map<String, Object> disableUser(Long id, Long adminId, String ip) {
+    public AdminUserResponse disableUser(Long id, Long adminId, String ip) {
         var user = requireUser(id);
         var now = DateTimeUtils.now();
         appUserMapper.update(null, new LambdaUpdateWrapper<AppUser>()
@@ -143,7 +146,7 @@ public class AdminBusinessQueryService {
     }
 
     @Transactional
-    public Map<String, Object> enableUser(Long id, Long adminId, String ip) {
+    public AdminUserResponse enableUser(Long id, Long adminId, String ip) {
         requireUser(id);
         appUserMapper.update(null, new LambdaUpdateWrapper<AppUser>()
                 .eq(AppUser::getId, id)
@@ -154,14 +157,17 @@ public class AdminBusinessQueryService {
         return getUser(id);
     }
 
-    public PageResult<UserWallet> pageWallets(long pageNo, long pageSize, Long userId, String walletNo) {
+    public PageResult<AdminWalletResponse> pageWallets(long pageNo, long pageSize, Long userId, String walletNo) {
         var page = new Page<UserWallet>(pageNo, pageSize);
         var wrapper = new LambdaQueryWrapper<UserWallet>()
                 .eq(userId != null, UserWallet::getUserId, userId)
                 .eq(hasText(walletNo), UserWallet::getWalletNo, walletNo)
                 .orderByDesc(UserWallet::getId);
         var result = userWalletMapper.selectPage(page, wrapper);
-        return new PageResult<>(result.getRecords(), result.getTotal(), result.getCurrent(), result.getSize());
+        var userNames = userNameMap(result.getRecords().stream().map(UserWallet::getUserId).toList());
+        return new PageResult<>(result.getRecords().stream()
+                .map(wallet -> walletResponse(wallet, userNames.get(wallet.getUserId())))
+                .toList(), result.getTotal(), result.getCurrent(), result.getSize());
     }
 
     public UserWallet getWalletByUser(Long userId) {
@@ -236,7 +242,7 @@ public class AdminBusinessQueryService {
         return new PageResult<>(result.getRecords(), result.getTotal(), result.getCurrent(), result.getSize());
     }
 
-    public Map<String, Object> getRentalOrder(String orderNo) {
+    public AdminRentalOrderDetailResponse getRentalOrder(String orderNo) {
         var order = rentalOrderMapper.selectOne(new LambdaQueryWrapper<RentalOrder>()
                 .eq(RentalOrder::getOrderNo, orderNo)
                 .last("LIMIT 1"));
@@ -247,13 +253,14 @@ public class AdminBusinessQueryService {
                 .eq(ApiCredential::getRentalOrderId, order.getId())
                 .last("LIMIT 1"));
         var user = appUserMapper.selectById(order.getUserId());
-        var result = rentalOrderMap(order);
-        result.put("userName", user == null ? null : user.getNickname());
-        result.put("apiCredential", credential == null ? null : credentialMap(credential));
-        return result;
+        var deployOrder = apiDeployOrderMapper.selectOne(new LambdaQueryWrapper<ApiDeployOrder>()
+                .eq(ApiDeployOrder::getRentalOrderId, order.getId())
+                .last("LIMIT 1"));
+        return rentalOrderResponse(order, user == null ? null : user.getNickname(), credential,
+                deployOrder == null ? null : deployOrder.getStatus());
     }
 
-    public PageResult<Map<String, Object>> pageApiCredentials(
+    public PageResult<AdminApiCredentialResponse> pageApiCredentials(
             long pageNo,
             long pageSize,
             Long userId,
@@ -271,18 +278,18 @@ public class AdminBusinessQueryService {
                 .le(endTime != null, ApiCredential::getCreatedAt, endTime)
                 .orderByDesc(ApiCredential::getId);
         var result = apiCredentialMapper.selectPage(page, wrapper);
-        return new PageResult<>(result.getRecords().stream().map(this::credentialMap).toList(),
+        return new PageResult<>(result.getRecords().stream().map(this::credentialResponse).toList(),
                 result.getTotal(), result.getCurrent(), result.getSize());
     }
 
-    public Map<String, Object> getApiCredential(String credentialNo) {
+    public AdminApiCredentialResponse getApiCredential(String credentialNo) {
         var credential = apiCredentialMapper.selectOne(new LambdaQueryWrapper<ApiCredential>()
                 .eq(ApiCredential::getCredentialNo, credentialNo)
                 .last("LIMIT 1"));
         if (credential == null) {
             throw new BusinessException(ErrorCode.NOT_FOUND, "API 凭证不存在");
         }
-        return credentialMap(credential);
+        return credentialResponse(credential);
     }
 
     public PageResult<ApiDeployOrder> pageApiDeployOrders(
@@ -457,22 +464,21 @@ public class AdminBusinessQueryService {
         return new PageResult<>(result.getRecords(), result.getTotal(), result.getCurrent(), result.getSize());
     }
 
-    public Map<String, Object> userTeam(Long userId) {
+    public AdminUserTeamResponse userTeam(Long userId) {
         requireUser(userId);
         var relations = teamRelationMapper.selectList(new LambdaQueryWrapper<UserTeamRelation>()
                 .eq(UserTeamRelation::getAncestorUserId, userId)
                 .orderByAsc(UserTeamRelation::getLevelDepth));
-        var result = new LinkedHashMap<String, Object>();
-        result.put("user_id", userId);
-        result.put("total_team_count", relations.size());
-        result.put("direct_team_count", countDepth(relations, 1));
-        result.put("level2_team_count", countDepth(relations, 2));
-        result.put("level3_team_count", countDepth(relations, 3));
-        result.put("deeper_team_count", relations.stream()
-                .filter(relation -> relation.getLevelDepth() != null && relation.getLevelDepth() > 3)
-                .count());
-        result.put("relations", relations);
-        return result;
+        return new AdminUserTeamResponse(
+                userId,
+                relations.size(),
+                countDepth(relations, 1),
+                countDepth(relations, 2),
+                countDepth(relations, 3),
+                relations.stream()
+                        .filter(relation -> relation.getLevelDepth() != null && relation.getLevelDepth() > 3)
+                        .count(),
+                relations);
     }
 
     public PageResult<SysAdminLog> pageLogs(
@@ -522,63 +528,125 @@ public class AdminBusinessQueryService {
         return order == null ? null : order.getId();
     }
 
-    private Map<String, Object> userMap(AppUser user) {
-        var result = new LinkedHashMap<String, Object>();
-        result.put("id", user.getId());
-        result.put("user_id", user.getUserId());
-        result.put("email", user.getEmail());
-        result.put("nickname", user.getNickname());
-        result.put("status", user.getStatus());
-        result.put("email_verified_at", user.getEmailVerifiedAt());
-        result.put("last_login_at", user.getLastLoginAt());
-        result.put("created_at", user.getCreatedAt());
-        result.put("updated_at", user.getUpdatedAt());
-        return result;
+    private AdminUserResponse userResponse(AppUser user) {
+        return new AdminUserResponse(
+                user.getId(),
+                user.getUserId(),
+                user.getEmail(),
+                user.getNickname(),
+                user.getStatus(),
+                user.getEmailVerifiedAt(),
+                user.getLastLoginAt(),
+                user.getCreatedAt(),
+                user.getUpdatedAt());
     }
 
-    private Map<String, Object> rentalOrderMap(RentalOrder order) {
-        var result = new LinkedHashMap<String, Object>();
-        for (var field : RentalOrder.class.getDeclaredFields()) {
-            if (Modifier.isStatic(field.getModifiers())) {
-                continue;
-            }
-            field.setAccessible(true);
-            try {
-                result.put(field.getName(), field.get(order));
-            } catch (IllegalAccessException ex) {
-                throw new IllegalStateException("Failed to read rental order field: " + field.getName(), ex);
-            }
-        }
-        return result;
+    private AdminWalletResponse walletResponse(UserWallet wallet, String nickname) {
+        return new AdminWalletResponse(
+                wallet.getId(),
+                wallet.getWalletNo(),
+                wallet.getUserId(),
+                nickname,
+                wallet.getCurrency(),
+                wallet.getAvailableBalance(),
+                wallet.getFrozenBalance(),
+                wallet.getTotalRecharge(),
+                wallet.getTotalWithdraw(),
+                wallet.getTotalProfit(),
+                wallet.getTotalCommission(),
+                wallet.getStatus(),
+                wallet.getVersionNo(),
+                wallet.getCreatedAt(),
+                wallet.getUpdatedAt());
     }
 
-    private Map<String, Object> credentialMap(ApiCredential credential) {
-        var result = new LinkedHashMap<String, Object>();
-        result.put("id", credential.getId());
-        result.put("credential_no", credential.getCredentialNo());
-        result.put("user_id", credential.getUserId());
-        result.put("rental_order_id", credential.getRentalOrderId());
-        result.put("api_name", credential.getApiName());
-        result.put("api_base_url", credential.getApiBaseUrl());
-        result.put("token_masked", credential.getTokenMasked());
-        result.put("model_name_snapshot", credential.getModelNameSnapshot());
-        result.put("deploy_fee_snapshot", credential.getDeployFeeSnapshot());
-        result.put("token_status", credential.getTokenStatus());
-        result.put("generated_at", credential.getGeneratedAt());
-        result.put("activation_paid_at", credential.getActivationPaidAt());
-        result.put("activated_at", credential.getActivatedAt());
-        result.put("auto_pause_at", credential.getAutoPauseAt());
-        result.put("paused_at", credential.getPausedAt());
-        result.put("started_at", credential.getStartedAt());
-        result.put("expired_at", credential.getExpiredAt());
-        result.put("revoked_at", credential.getRevokedAt());
-        result.put("mock_request_count", credential.getMockRequestCount());
-        result.put("mock_token_display", credential.getMockTokenDisplay());
-        result.put("mock_last_refresh_at", credential.getMockLastRefreshAt());
-        result.put("remark", credential.getRemark());
-        result.put("created_at", credential.getCreatedAt());
-        result.put("updated_at", credential.getUpdatedAt());
-        return result;
+    private AdminRentalOrderDetailResponse rentalOrderResponse(
+            RentalOrder order,
+            String userName,
+            ApiCredential credential,
+            String deployOrderStatus
+    ) {
+        return new AdminRentalOrderDetailResponse(
+                order.getId(),
+                order.getOrderNo(),
+                order.getUserId(),
+                userName,
+                order.getProductId(),
+                order.getAiModelId(),
+                order.getCycleRuleId(),
+                order.getProductCodeSnapshot(),
+                order.getProductNameSnapshot(),
+                order.getMachineCodeSnapshot(),
+                order.getMachineAliasSnapshot(),
+                order.getRegionNameSnapshot(),
+                order.getGpuModelSnapshot(),
+                order.getGpuMemorySnapshotGb(),
+                order.getGpuPowerTopsSnapshot(),
+                order.getGpuRentPriceSnapshot(),
+                order.getTokenOutputPerDaySnapshot(),
+                order.getAiModelNameSnapshot(),
+                order.getAiVendorNameSnapshot(),
+                order.getMonthlyTokenConsumptionSnapshot(),
+                order.getTokenUnitPriceSnapshot(),
+                order.getDeployFeeSnapshot(),
+                order.getCycleDaysSnapshot(),
+                order.getYieldMultiplierSnapshot(),
+                order.getEarlyPenaltyRateSnapshot(),
+                order.getCurrency(),
+                order.getOrderAmount(),
+                order.getPaidAmount(),
+                order.getExpectedDailyProfit(),
+                order.getExpectedTotalProfit(),
+                order.getOrderStatus(),
+                order.getProfitStatus(),
+                order.getSettlementStatus(),
+                order.getMachinePayTxNo(),
+                order.getPaidAt(),
+                order.getApiGeneratedAt(),
+                order.getDeployFeePaidAt(),
+                order.getActivatedAt(),
+                order.getAutoPauseAt(),
+                order.getPausedAt(),
+                order.getStartedAt(),
+                order.getProfitStartAt(),
+                order.getProfitEndAt(),
+                order.getExpiredAt(),
+                order.getCanceledAt(),
+                order.getFinishedAt(),
+                order.getCreatedAt(),
+                order.getUpdatedAt(),
+                credential == null ? null : credential.getCredentialNo(),
+                credential == null ? null : credential.getTokenStatus(),
+                credential == null ? null : credential.getApiBaseUrl(),
+                deployOrderStatus);
+    }
+
+    private AdminApiCredentialResponse credentialResponse(ApiCredential credential) {
+        return new AdminApiCredentialResponse(
+                credential.getId(),
+                credential.getCredentialNo(),
+                credential.getUserId(),
+                credential.getRentalOrderId(),
+                credential.getApiName(),
+                credential.getApiBaseUrl(),
+                credential.getTokenMasked(),
+                credential.getModelNameSnapshot(),
+                credential.getDeployFeeSnapshot(),
+                credential.getTokenStatus(),
+                credential.getGeneratedAt(),
+                credential.getActivationPaidAt(),
+                credential.getActivatedAt(),
+                credential.getAutoPauseAt(),
+                credential.getPausedAt(),
+                credential.getStartedAt(),
+                credential.getExpiredAt(),
+                credential.getRevokedAt(),
+                credential.getMockRequestCount(),
+                credential.getMockTokenDisplay(),
+                credential.getMockLastRefreshAt(),
+                credential.getRemark(),
+                credential.getCreatedAt(),
+                credential.getUpdatedAt());
     }
 
     private void fillUserName(WalletTransaction transaction) {

@@ -7,6 +7,11 @@ import com.compute.rental.modules.order.entity.ApiDeployOrder;
 import com.compute.rental.modules.order.entity.RentalOrder;
 import com.compute.rental.modules.order.entity.RentalProfitRecord;
 import com.compute.rental.modules.order.entity.RentalSettlementOrder;
+import com.compute.rental.modules.system.dto.AdminApiCredentialResponse;
+import com.compute.rental.modules.system.dto.AdminRentalOrderDetailResponse;
+import com.compute.rental.modules.system.dto.AdminUserResponse;
+import com.compute.rental.modules.system.dto.AdminUserTeamResponse;
+import com.compute.rental.modules.system.dto.AdminWalletResponse;
 import com.compute.rental.modules.system.entity.SysAdminLog;
 import com.compute.rental.modules.system.service.AdminBusinessQueryService;
 import com.compute.rental.modules.system.service.AdminLogService;
@@ -19,7 +24,6 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.util.Map;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -46,7 +50,7 @@ public class AdminBusinessController {
 
     @Operation(summary = "Admin users")
     @GetMapping("/users")
-    public ApiResponse<PageResult<Map<String, Object>>> users(
+    public ApiResponse<PageResult<AdminUserResponse>> users(
             @RequestParam(defaultValue = "1") long pageNo,
             @RequestParam(defaultValue = "10") long pageSize,
             @RequestParam(required = false) String email,
@@ -63,27 +67,27 @@ public class AdminBusinessController {
 
     @Operation(summary = "Admin user detail")
     @GetMapping("/users/{userId}")
-    public ApiResponse<Map<String, Object>> user(@PathVariable Long userId) {
+    public ApiResponse<AdminUserResponse> user(@PathVariable Long userId) {
         return ApiResponse.success(adminBusinessQueryService.getUser(userId));
     }
 
     @Operation(summary = "Disable user")
     @PostMapping("/users/{userId}/disable")
-    public ApiResponse<Map<String, Object>> disableUser(@PathVariable Long userId, HttpServletRequest request) {
+    public ApiResponse<AdminUserResponse> disableUser(@PathVariable Long userId, HttpServletRequest request) {
         var admin = CurrentUser.requiredAdmin();
         return ApiResponse.success(adminBusinessQueryService.disableUser(userId, admin.id(), adminLogService.clientIp(request)));
     }
 
     @Operation(summary = "Enable user")
     @PostMapping("/users/{userId}/enable")
-    public ApiResponse<Map<String, Object>> enableUser(@PathVariable Long userId, HttpServletRequest request) {
+    public ApiResponse<AdminUserResponse> enableUser(@PathVariable Long userId, HttpServletRequest request) {
         var admin = CurrentUser.requiredAdmin();
         return ApiResponse.success(adminBusinessQueryService.enableUser(userId, admin.id(), adminLogService.clientIp(request)));
     }
 
     @Operation(summary = "Admin wallets")
     @GetMapping("/wallets")
-    public ApiResponse<PageResult<UserWallet>> wallets(
+    public ApiResponse<PageResult<AdminWalletResponse>> wallets(
             @RequestParam(defaultValue = "1") long pageNo,
             @RequestParam(defaultValue = "10") long pageSize,
             @RequestParam(required = false, name = "user_id") Long userId,
@@ -137,13 +141,13 @@ public class AdminBusinessController {
 
     @Operation(summary = "Admin rental order detail")
     @GetMapping("/rental/orders/{orderNo}")
-    public ApiResponse<Map<String, Object>> rentalOrder(@PathVariable String orderNo) {
+    public ApiResponse<AdminRentalOrderDetailResponse> rentalOrder(@PathVariable String orderNo) {
         return ApiResponse.success(adminBusinessQueryService.getRentalOrder(orderNo));
     }
 
     @Operation(summary = "Admin API credentials")
     @GetMapping("/api-credentials")
-    public ApiResponse<PageResult<Map<String, Object>>> apiCredentials(
+    public ApiResponse<PageResult<AdminApiCredentialResponse>> apiCredentials(
             @RequestParam(defaultValue = "1") long pageNo,
             @RequestParam(defaultValue = "10") long pageSize,
             @RequestParam(required = false, name = "user_id") Long userId,
@@ -160,7 +164,7 @@ public class AdminBusinessController {
 
     @Operation(summary = "Admin API credential detail")
     @GetMapping("/api-credentials/{credentialNo}")
-    public ApiResponse<Map<String, Object>> apiCredential(@PathVariable String credentialNo) {
+    public ApiResponse<AdminApiCredentialResponse> apiCredential(@PathVariable String credentialNo) {
         return ApiResponse.success(adminBusinessQueryService.getApiCredential(credentialNo));
     }
 
@@ -275,7 +279,7 @@ public class AdminBusinessController {
 
     @Operation(summary = "Admin user team")
     @GetMapping("/users/{userId}/team")
-    public ApiResponse<Map<String, Object>> userTeam(@PathVariable Long userId) {
+    public ApiResponse<AdminUserTeamResponse> userTeam(@PathVariable Long userId) {
         return ApiResponse.success(adminBusinessQueryService.userTeam(userId));
     }
 

@@ -8,6 +8,8 @@ logging:
     com.baomidou.mybatisplus: INFO
 
 spring:
+  config:
+    import: optional:file:./application-local.yml
   application:
     name: compute-rental-backend
   jackson:
