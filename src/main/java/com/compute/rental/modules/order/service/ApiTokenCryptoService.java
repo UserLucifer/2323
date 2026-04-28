@@ -29,7 +29,7 @@ public class ApiTokenCryptoService {
 
     public String encrypt(String plaintext) {
         if (!StringUtils.hasText(plaintext)) {
-            throw new BusinessException(ErrorCode.BAD_REQUEST, "API token plaintext is required");
+            throw new BusinessException(ErrorCode.BAD_REQUEST, "API Token 明文不能为空");
         }
         try {
             var iv = new byte[IV_BYTES];
@@ -39,13 +39,13 @@ public class ApiTokenCryptoService {
             var ciphertext = cipher.doFinal(plaintext.getBytes(StandardCharsets.UTF_8));
             return Base64.getEncoder().encodeToString(iv) + ":" + Base64.getEncoder().encodeToString(ciphertext);
         } catch (Exception ex) {
-            throw new BusinessException(ErrorCode.SYSTEM_ERROR, "Failed to encrypt API token");
+            throw new BusinessException(ErrorCode.SYSTEM_ERROR, "API Token 加密失败");
         }
     }
 
     private SecretKeySpec secretKey() throws Exception {
         if (!StringUtils.hasText(apiTokenProperties.encryptionSecret())) {
-            throw new BusinessException(ErrorCode.SYSTEM_ERROR, "API token encryption secret is not configured");
+            throw new BusinessException(ErrorCode.SYSTEM_ERROR, "API Token 加密密钥未配置");
         }
         var digest = MessageDigest.getInstance("SHA-256");
         var key = digest.digest(apiTokenProperties.encryptionSecret().getBytes(StandardCharsets.UTF_8));

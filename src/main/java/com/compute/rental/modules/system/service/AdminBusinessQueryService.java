@@ -31,6 +31,7 @@ import com.compute.rental.modules.wallet.entity.UserWallet;
 import com.compute.rental.modules.wallet.entity.WalletTransaction;
 import com.compute.rental.modules.wallet.mapper.UserWalletMapper;
 import com.compute.rental.modules.wallet.mapper.WalletTransactionMapper;
+import java.lang.reflect.Modifier;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.Collections;
@@ -166,7 +167,7 @@ public class AdminBusinessQueryService {
                 .eq(UserWallet::getUserId, userId)
                 .last("LIMIT 1"));
         if (wallet == null) {
-            throw new BusinessException(ErrorCode.NOT_FOUND, "Wallet not found");
+            throw new BusinessException(ErrorCode.NOT_FOUND, "钱包不存在");
         }
         return wallet;
     }
@@ -234,14 +235,15 @@ public class AdminBusinessQueryService {
                 .eq(RentalOrder::getOrderNo, orderNo)
                 .last("LIMIT 1"));
         if (order == null) {
-            throw new BusinessException(ErrorCode.NOT_FOUND, "Rental order not found");
+            throw new BusinessException(ErrorCode.NOT_FOUND, "租赁订单不存在");
         }
         var credential = apiCredentialMapper.selectOne(new LambdaQueryWrapper<ApiCredential>()
                 .eq(ApiCredential::getRentalOrderId, order.getId())
                 .last("LIMIT 1"));
-        var result = new LinkedHashMap<String, Object>();
-        result.put("order", order);
-        result.put("api_credential", credential == null ? null : credentialMap(credential));
+        var user = appUserMapper.selectById(order.getUserId());
+        var result = rentalOrderMap(order);
+        result.put("userName", user == null ? null : user.getNickname());
+        result.put("apiCredential", credential == null ? null : credentialMap(credential));
         return result;
     }
 
@@ -272,7 +274,7 @@ public class AdminBusinessQueryService {
                 .eq(ApiCredential::getCredentialNo, credentialNo)
                 .last("LIMIT 1"));
         if (credential == null) {
-            throw new BusinessException(ErrorCode.NOT_FOUND, "API credential not found");
+            throw new BusinessException(ErrorCode.NOT_FOUND, "API 凭证不存在");
         }
         return credentialMap(credential);
     }
@@ -303,7 +305,7 @@ public class AdminBusinessQueryService {
                 .eq(ApiDeployOrder::getDeployNo, deployNo)
                 .last("LIMIT 1"));
         if (order == null) {
-            throw new BusinessException(ErrorCode.NOT_FOUND, "API deploy order not found");
+            throw new BusinessException(ErrorCode.NOT_FOUND, "API 部署订单不存在");
         }
         return order;
     }
@@ -340,7 +342,7 @@ public class AdminBusinessQueryService {
                 .eq(RentalProfitRecord::getProfitNo, profitNo)
                 .last("LIMIT 1"));
         if (record == null) {
-            throw new BusinessException(ErrorCode.NOT_FOUND, "Profit record not found");
+            throw new BusinessException(ErrorCode.NOT_FOUND, "收益记录不存在");
         }
         return record;
     }
@@ -377,7 +379,7 @@ public class AdminBusinessQueryService {
                 .eq(RentalSettlementOrder::getSettlementNo, settlementNo)
                 .last("LIMIT 1"));
         if (order == null) {
-            throw new BusinessException(ErrorCode.NOT_FOUND, "Settlement order not found");
+            throw new BusinessException(ErrorCode.NOT_FOUND, "结算订单不存在");
         }
         return order;
     }
@@ -414,7 +416,7 @@ public class AdminBusinessQueryService {
                 .eq(CommissionRecord::getCommissionNo, commissionNo)
                 .last("LIMIT 1"));
         if (record == null) {
-            throw new BusinessException(ErrorCode.NOT_FOUND, "Commission record not found");
+            throw new BusinessException(ErrorCode.NOT_FOUND, "佣金记录不存在");
         }
         return record;
     }
@@ -479,7 +481,7 @@ public class AdminBusinessQueryService {
     public SysAdminLog getLog(Long id) {
         var log = adminLogMapper.selectById(id);
         if (log == null) {
-            throw new BusinessException(ErrorCode.NOT_FOUND, "Admin log not found");
+            throw new BusinessException(ErrorCode.NOT_FOUND, "管理员日志不存在");
         }
         return log;
     }
@@ -487,7 +489,7 @@ public class AdminBusinessQueryService {
     private AppUser requireUser(Long id) {
         var user = appUserMapper.selectById(id);
         if (user == null) {
-            throw new BusinessException(ErrorCode.NOT_FOUND, "User not found");
+            throw new BusinessException(ErrorCode.NOT_FOUND, "用户不存在");
         }
         return user;
     }
@@ -513,6 +515,22 @@ public class AdminBusinessQueryService {
         result.put("last_login_at", user.getLastLoginAt());
         result.put("created_at", user.getCreatedAt());
         result.put("updated_at", user.getUpdatedAt());
+        return result;
+    }
+
+    private Map<String, Object> rentalOrderMap(RentalOrder order) {
+        var result = new LinkedHashMap<String, Object>();
+        for (var field : RentalOrder.class.getDeclaredFields()) {
+            if (Modifier.isStatic(field.getModifiers())) {
+                continue;
+            }
+            field.setAccessible(true);
+            try {
+                result.put(field.getName(), field.get(order));
+            } catch (IllegalAccessException ex) {
+                throw new IllegalStateException("Failed to read rental order field: " + field.getName(), ex);
+            }
+        }
         return result;
     }
 

@@ -125,7 +125,7 @@ public class RentalOrderService {
     public RentalOrderDetailResponse payMachineFee(Long userId, String orderNo) {
         var order = requireUserOrder(userId, orderNo);
         if (!RentalOrderStatus.PENDING_PAY.name().equals(order.getOrderStatus())) {
-            throw new BusinessException(ErrorCode.BUSINESS_ERROR, "Only pending-pay rental orders can be paid");
+            throw new BusinessException(ErrorCode.BUSINESS_ERROR, "仅待支付租赁订单可支付");
         }
         var now = DateTimeUtils.now();
         var updated = rentalOrderMapper.update(null, new LambdaUpdateWrapper<RentalOrder>()
@@ -137,7 +137,7 @@ public class RentalOrderService {
                 .set(RentalOrder::getApiGeneratedAt, now)
                 .set(RentalOrder::getUpdatedAt, now));
         if (updated == 0) {
-            throw new BusinessException(ErrorCode.CONCURRENT_UPDATE_FAILED, "Rental order status changed");
+            throw new BusinessException(ErrorCode.CONCURRENT_UPDATE_FAILED, "租赁订单状态已变化");
         }
 
         var walletTx = walletService.debit(
@@ -167,14 +167,14 @@ public class RentalOrderService {
             cancelPendingActivation(order);
             return getUserOrder(userId, orderNo);
         }
-        throw new BusinessException(ErrorCode.BUSINESS_ERROR, "Current rental order status cannot be canceled");
+        throw new BusinessException(ErrorCode.BUSINESS_ERROR, "当前租赁订单状态不可取消");
     }
 
     public ApiCredentialResponse getUserApiCredential(Long userId, String orderNo) {
         var order = requireUserOrder(userId, orderNo);
         var credential = findCredential(order.getId());
         if (credential == null) {
-            throw new BusinessException(ErrorCode.NOT_FOUND, "API credential not found");
+            throw new BusinessException(ErrorCode.NOT_FOUND, "API 凭证不存在");
         }
         return toCredentialResponse(credential);
     }
@@ -194,10 +194,10 @@ public class RentalOrderService {
             return toDeployOrderResponse(order, credential, existing);
         }
         if (!RentalOrderStatus.PENDING_ACTIVATION.name().equals(order.getOrderStatus())) {
-            throw new BusinessException(ErrorCode.BUSINESS_ERROR, "Only pending-activation rental orders can pay deploy fee");
+            throw new BusinessException(ErrorCode.BUSINESS_ERROR, "仅待激活租赁订单可支付部署费用");
         }
         if (!ApiTokenStatus.GENERATED.name().equals(credential.getTokenStatus())) {
-            throw new BusinessException(ErrorCode.BUSINESS_ERROR, "Only generated API credentials can be activated");
+            throw new BusinessException(ErrorCode.BUSINESS_ERROR, "仅已生成的 API 凭证可激活");
         }
 
         var now = DateTimeUtils.now();
@@ -222,7 +222,7 @@ public class RentalOrderService {
                 .set(ApiDeployOrder::getPaidAt, now)
                 .set(ApiDeployOrder::getUpdatedAt, now));
         if (updatedDeploy == 0) {
-            throw new BusinessException(ErrorCode.CONCURRENT_UPDATE_FAILED, "API deploy order status changed");
+            throw new BusinessException(ErrorCode.CONCURRENT_UPDATE_FAILED, "API 部署订单状态已变化");
         }
         var updatedCredential = apiCredentialMapper.update(null, new LambdaUpdateWrapper<ApiCredential>()
                 .eq(ApiCredential::getId, credential.getId())
@@ -233,7 +233,7 @@ public class RentalOrderService {
                 .set(ApiCredential::getAutoPauseAt, autoPauseAt)
                 .set(ApiCredential::getUpdatedAt, now));
         if (updatedCredential == 0) {
-            throw new BusinessException(ErrorCode.CONCURRENT_UPDATE_FAILED, "API credential status changed");
+            throw new BusinessException(ErrorCode.CONCURRENT_UPDATE_FAILED, "API 凭证状态已变化");
         }
         var updatedOrder = rentalOrderMapper.update(null, new LambdaUpdateWrapper<RentalOrder>()
                 .eq(RentalOrder::getId, order.getId())
@@ -244,7 +244,7 @@ public class RentalOrderService {
                 .set(RentalOrder::getAutoPauseAt, autoPauseAt)
                 .set(RentalOrder::getUpdatedAt, now));
         if (updatedOrder == 0) {
-            throw new BusinessException(ErrorCode.CONCURRENT_UPDATE_FAILED, "Rental order status changed");
+            throw new BusinessException(ErrorCode.CONCURRENT_UPDATE_FAILED, "租赁订单状态已变化");
         }
         // TODO: create sys_notification API_ACTIVATED after notification service is implemented.
 
@@ -257,7 +257,7 @@ public class RentalOrderService {
         var credential = requireCredential(order.getId());
         var deployOrder = findDeployOrder(order.getId(), credential.getId());
         if (deployOrder == null) {
-            throw new BusinessException(ErrorCode.NOT_FOUND, "API deploy order not found");
+            throw new BusinessException(ErrorCode.NOT_FOUND, "API 部署订单不存在");
         }
         return toDeployOrderResponse(order, credential, deployOrder);
     }
@@ -266,11 +266,11 @@ public class RentalOrderService {
     public RentalOrderDetailResponse startOrder(Long userId, String orderNo) {
         var order = requireUserOrder(userId, orderNo);
         if (!RentalOrderStatus.PAUSED.name().equals(order.getOrderStatus())) {
-            throw new BusinessException(ErrorCode.BUSINESS_ERROR, "Only paused rental orders can be started");
+            throw new BusinessException(ErrorCode.BUSINESS_ERROR, "仅已暂停租赁订单可启动");
         }
         var credential = requireCredential(order.getId());
         if (!ApiTokenStatus.PAUSED.name().equals(credential.getTokenStatus())) {
-            throw new BusinessException(ErrorCode.BUSINESS_ERROR, "Only paused API credentials can be started");
+            throw new BusinessException(ErrorCode.BUSINESS_ERROR, "仅已暂停 API 凭证可启动");
         }
         var now = DateTimeUtils.now();
         var profitEndAt = now.plusDays(order.getCycleDaysSnapshot());
@@ -284,7 +284,7 @@ public class RentalOrderService {
                 .set(RentalOrder::getProfitEndAt, profitEndAt)
                 .set(RentalOrder::getUpdatedAt, now));
         if (updatedOrder == 0) {
-            throw new BusinessException(ErrorCode.CONCURRENT_UPDATE_FAILED, "Rental order status changed");
+            throw new BusinessException(ErrorCode.CONCURRENT_UPDATE_FAILED, "租赁订单状态已变化");
         }
         var updatedCredential = apiCredentialMapper.update(null, new LambdaUpdateWrapper<ApiCredential>()
                 .eq(ApiCredential::getId, credential.getId())
@@ -293,7 +293,7 @@ public class RentalOrderService {
                 .set(ApiCredential::getStartedAt, now)
                 .set(ApiCredential::getUpdatedAt, now));
         if (updatedCredential == 0) {
-            throw new BusinessException(ErrorCode.CONCURRENT_UPDATE_FAILED, "API credential status changed");
+            throw new BusinessException(ErrorCode.CONCURRENT_UPDATE_FAILED, "API 凭证状态已变化");
         }
         return getUserOrder(userId, orderNo);
     }
@@ -306,7 +306,7 @@ public class RentalOrderService {
                 .set(RentalOrder::getCanceledAt, DateTimeUtils.now())
                 .set(RentalOrder::getUpdatedAt, DateTimeUtils.now()));
         if (updated == 0) {
-            throw new BusinessException(ErrorCode.CONCURRENT_UPDATE_FAILED, "Rental order status changed");
+            throw new BusinessException(ErrorCode.CONCURRENT_UPDATE_FAILED, "租赁订单状态已变化");
         }
     }
 
@@ -319,7 +319,7 @@ public class RentalOrderService {
                 .set(RentalOrder::getCanceledAt, now)
                 .set(RentalOrder::getUpdatedAt, now));
         if (updated == 0) {
-            throw new BusinessException(ErrorCode.CONCURRENT_UPDATE_FAILED, "Rental order status changed");
+            throw new BusinessException(ErrorCode.CONCURRENT_UPDATE_FAILED, "租赁订单状态已变化");
         }
         walletService.credit(
                 order.getUserId(),
@@ -407,7 +407,7 @@ public class RentalOrderService {
         try {
             apiCredentialMapper.insert(credential);
         } catch (DuplicateKeyException ex) {
-            throw new BusinessException(ErrorCode.IDEMPOTENCY_CONFLICT, "API credential already exists");
+            throw new BusinessException(ErrorCode.IDEMPOTENCY_CONFLICT, "API 凭证已存在");
         }
         return credential;
     }
@@ -415,7 +415,7 @@ public class RentalOrderService {
     private Product requireEnabledProduct(Long productId) {
         var product = productMapper.selectById(productId);
         if (product == null || !Integer.valueOf(CommonStatus.ENABLED.value()).equals(product.getStatus())) {
-            throw new BusinessException(ErrorCode.NOT_FOUND, "Product not found");
+            throw new BusinessException(ErrorCode.NOT_FOUND, "产品不存在");
         }
         return product;
     }
@@ -423,7 +423,7 @@ public class RentalOrderService {
     private AiModel requireEnabledAiModel(Long aiModelId) {
         var aiModel = aiModelMapper.selectById(aiModelId);
         if (aiModel == null || !Integer.valueOf(CommonStatus.ENABLED.value()).equals(aiModel.getStatus())) {
-            throw new BusinessException(ErrorCode.NOT_FOUND, "AI model not found");
+            throw new BusinessException(ErrorCode.NOT_FOUND, "AI 模型不存在");
         }
         return aiModel;
     }
@@ -431,7 +431,7 @@ public class RentalOrderService {
     private RentalCycleRule requireEnabledCycleRule(Long cycleRuleId) {
         var cycleRule = rentalCycleRuleMapper.selectById(cycleRuleId);
         if (cycleRule == null || !Integer.valueOf(CommonStatus.ENABLED.value()).equals(cycleRule.getStatus())) {
-            throw new BusinessException(ErrorCode.NOT_FOUND, "Rental cycle rule not found");
+            throw new BusinessException(ErrorCode.NOT_FOUND, "租赁周期规则不存在");
         }
         return cycleRule;
     }
@@ -439,7 +439,7 @@ public class RentalOrderService {
     private String requireRegionName(Long regionId) {
         var region = regionMapper.selectById(regionId);
         if (region == null) {
-            throw new BusinessException(ErrorCode.BAD_REQUEST, "Product region is unavailable");
+            throw new BusinessException(ErrorCode.BAD_REQUEST, "产品所属地区不可用");
         }
         return region.getRegionName();
     }
@@ -447,7 +447,7 @@ public class RentalOrderService {
     private String requireGpuModelName(Long gpuModelId) {
         var gpuModel = gpuModelMapper.selectById(gpuModelId);
         if (gpuModel == null) {
-            throw new BusinessException(ErrorCode.BAD_REQUEST, "Product GPU model is unavailable");
+            throw new BusinessException(ErrorCode.BAD_REQUEST, "产品 GPU 型号不可用");
         }
         return gpuModel.getModelName();
     }
@@ -458,7 +458,7 @@ public class RentalOrderService {
                 .eq(RentalOrder::getOrderNo, orderNo)
                 .last("LIMIT 1"));
         if (order == null) {
-            throw new BusinessException(ErrorCode.NOT_FOUND, "Rental order not found");
+            throw new BusinessException(ErrorCode.NOT_FOUND, "租赁订单不存在");
         }
         return order;
     }
@@ -472,7 +472,7 @@ public class RentalOrderService {
     private ApiCredential requireCredential(Long rentalOrderId) {
         var credential = findCredential(rentalOrderId);
         if (credential == null) {
-            throw new BusinessException(ErrorCode.NOT_FOUND, "API credential not found");
+            throw new BusinessException(ErrorCode.NOT_FOUND, "API 凭证不存在");
         }
         return credential;
     }
@@ -498,7 +498,7 @@ public class RentalOrderService {
             if (existing != null && ApiDeployOrderStatus.PAID.name().equals(existing.getStatus())) {
                 return existing;
             }
-            throw new BusinessException(ErrorCode.IDEMPOTENCY_CONFLICT, "API deploy order already exists");
+            throw new BusinessException(ErrorCode.IDEMPOTENCY_CONFLICT, "API 部署订单已存在");
         }
         return deployOrder;
     }

@@ -237,7 +237,7 @@ public class WalletService {
         try {
             walletTransactionMapper.insert(transaction);
         } catch (DuplicateKeyException ex) {
-            throw new BusinessException(ErrorCode.IDEMPOTENCY_CONFLICT, "Duplicate wallet idempotency key");
+            throw new BusinessException(ErrorCode.IDEMPOTENCY_CONFLICT, "钱包幂等键重复");
         }
         return transaction;
     }
@@ -320,7 +320,7 @@ public class WalletService {
         try {
             walletTransactionMapper.insert(transaction);
         } catch (DuplicateKeyException ex) {
-            throw new BusinessException(ErrorCode.IDEMPOTENCY_CONFLICT, "Duplicate wallet idempotency key");
+            throw new BusinessException(ErrorCode.IDEMPOTENCY_CONFLICT, "钱包幂等键重复");
         }
         return transaction;
     }
@@ -363,7 +363,7 @@ public class WalletService {
     private BigDecimal requirePositiveAmount(BigDecimal amount) {
         var scaled = MoneyUtils.scale(amount);
         if (scaled.signum() <= 0) {
-            throw new BusinessException(ErrorCode.INVALID_AMOUNT, "Amount must be greater than 0");
+            throw new BusinessException(ErrorCode.INVALID_AMOUNT, "金额必须大于 0");
         }
         return scaled;
     }
@@ -379,7 +379,7 @@ public class WalletService {
 
     private String buildIdempotencyKey(WalletBusinessType bizType, String bizOrderNo, String action) {
         if (bizType == null || !StringUtils.hasText(bizOrderNo)) {
-            throw new BusinessException(ErrorCode.BAD_REQUEST, "bizType and bizOrderNo are required");
+            throw new BusinessException(ErrorCode.BAD_REQUEST, "业务类型和业务订单号不能为空");
         }
         return bizType.name() + ":" + bizOrderNo.trim() + ":" + action;
     }

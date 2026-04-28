@@ -84,7 +84,7 @@ public class ProductCatalogService {
                 .eq(Product::getStatus, CommonStatus.ENABLED.value())
                 .last("LIMIT 1"));
         if (product == null) {
-            throw new BusinessException(ErrorCode.NOT_FOUND, "Product not found");
+            throw new BusinessException(ErrorCode.NOT_FOUND, "产品不存在");
         }
         return toProductResponse(product);
     }

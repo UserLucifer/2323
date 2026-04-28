@@ -120,4 +120,25 @@ class AdminBusinessQueryServiceTest {
         assertEquals("tok***001", result.get("token_masked"));
         assertFalse(result.containsKey("token_ciphertext"));
     }
+
+    @Test
+    void rentalOrderDetailIncludesUserName() {
+        var order = new RentalOrder();
+        order.setId(20L);
+        order.setUserId(10L);
+        order.setOrderNo("RO001");
+        var user = new AppUser();
+        user.setId(10L);
+        user.setNickname("Alice");
+
+        when(rentalOrderMapper.selectOne(any())).thenReturn(order);
+        when(apiCredentialMapper.selectOne(any())).thenReturn(null);
+        when(appUserMapper.selectById(10L)).thenReturn(user);
+
+        var result = service.getRentalOrder("RO001");
+
+        assertEquals("RO001", result.get("orderNo"));
+        assertEquals("Alice", result.get("userName"));
+        assertFalse(result.containsKey("order"));
+    }
 }

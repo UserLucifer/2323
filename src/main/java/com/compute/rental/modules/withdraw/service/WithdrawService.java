@@ -71,12 +71,12 @@ public class WithdrawService {
         var amount = requirePositiveAmount(request.applyAmount());
         var minAmount = sysConfigService.getBigDecimal(SysConfigDefaults.WITHDRAW_MIN_AMOUNT, new BigDecimal("10"));
         if (amount.compareTo(minAmount) < 0) {
-            throw new BusinessException(ErrorCode.BAD_REQUEST, "Withdraw amount is below minimum amount");
+            throw new BusinessException(ErrorCode.BAD_REQUEST, "提现金额低于最低金额");
         }
         var maxDailyAmount = sysConfigService.getBigDecimal(SysConfigDefaults.WITHDRAW_MAX_DAILY_AMOUNT, new BigDecimal("100000"));
         var todayAmount = todayActiveWithdrawAmount(userId);
         if (todayAmount.add(amount).compareTo(maxDailyAmount) > 0) {
-            throw new BusinessException(ErrorCode.BAD_REQUEST, "Daily withdraw limit exceeded");
+            throw new BusinessException(ErrorCode.BAD_REQUEST, "已超过每日提现限额");
         }
         var network = addressValidator.requireValid(request.network(), request.accountNo());
         var feeAmount = calculateFee(amount);
@@ -139,7 +139,7 @@ public class WithdrawService {
     public void cancelUserOrder(Long userId, String withdrawNo) {
         var order = requireUserOrder(userId, withdrawNo);
         if (!WithdrawOrderStatus.PENDING_REVIEW.name().equals(order.getStatus())) {
-            throw new BusinessException(ErrorCode.BUSINESS_ERROR, "Only pending withdraw orders can be canceled");
+            throw new BusinessException(ErrorCode.BUSINESS_ERROR, "仅待处理提现订单可取消");
         }
         updateStatus(order, WithdrawOrderStatus.CANCELED, null, null, null);
         var tx = walletService.unfreeze(order.getUserId(), order.getApplyAmount(), WalletBusinessType.WITHDRAW,
@@ -168,7 +168,7 @@ public class WithdrawService {
     public WithdrawOrderResponse approve(String withdrawNo, Long reviewedBy, AdminApproveWithdrawRequest request) {
         var order = requireOrder(withdrawNo);
         if (!WithdrawOrderStatus.PENDING_REVIEW.name().equals(order.getStatus())) {
-            throw new BusinessException(ErrorCode.BUSINESS_ERROR, "Only pending withdraw orders can be approved");
+            throw new BusinessException(ErrorCode.BUSINESS_ERROR, "仅待处理提现订单可审核通过");
         }
         updateStatus(order, WithdrawOrderStatus.APPROVED, reviewedBy, request.reviewRemark(), null);
         return getAdminOrder(withdrawNo);
@@ -179,7 +179,7 @@ public class WithdrawService {
         var order = requireOrder(withdrawNo);
         if (!WithdrawOrderStatus.PENDING_REVIEW.name().equals(order.getStatus())
                 && !WithdrawOrderStatus.APPROVED.name().equals(order.getStatus())) {
-            throw new BusinessException(ErrorCode.BUSINESS_ERROR, "Only pending or approved withdraw orders can be rejected");
+            throw new BusinessException(ErrorCode.BUSINESS_ERROR, "仅待处理或已审核提现订单可驳回");
         }
         updateStatus(order, WithdrawOrderStatus.REJECTED, reviewedBy, request.reviewRemark(), null);
         var tx = walletService.unfreeze(order.getUserId(), order.getApplyAmount(), WalletBusinessType.WITHDRAW,
@@ -192,7 +192,7 @@ public class WithdrawService {
     public WithdrawOrderResponse paid(String withdrawNo, AdminPaidWithdrawRequest request) {
         var order = requireOrder(withdrawNo);
         if (!WithdrawOrderStatus.APPROVED.name().equals(order.getStatus())) {
-            throw new BusinessException(ErrorCode.BUSINESS_ERROR, "Only approved withdraw orders can be paid");
+            throw new BusinessException(ErrorCode.BUSINESS_ERROR, "仅已审核提现订单可标记打款");
         }
         var now = DateTimeUtils.now();
         var updated = withdrawOrderMapper.update(null, new LambdaUpdateWrapper<WithdrawOrder>()
@@ -203,7 +203,7 @@ public class WithdrawService {
                 .set(WithdrawOrder::getPayProofNo, trimToNull(request.payProofNo()))
                 .set(WithdrawOrder::getUpdatedAt, now));
         if (updated == 0) {
-            throw new BusinessException(ErrorCode.CONCURRENT_UPDATE_FAILED, "Withdraw order status changed");
+            throw new BusinessException(ErrorCode.CONCURRENT_UPDATE_FAILED, "提现订单状态已变化");
         }
         var tx = walletService.deductFrozen(order.getUserId(), order.getApplyAmount(), order.getActualAmount(),
                 WalletBusinessType.WITHDRAW, order.getWithdrawNo(), PAID_ACTION, "Withdraw paid");
@@ -254,7 +254,7 @@ public class WithdrawService {
         }
         var updated = withdrawOrderMapper.update(null, update);
         if (updated == 0) {
-            throw new BusinessException(ErrorCode.CONCURRENT_UPDATE_FAILED, "Withdraw order status changed");
+            throw new BusinessException(ErrorCode.CONCURRENT_UPDATE_FAILED, "提现订单状态已变化");
         }
     }
 
@@ -281,7 +281,7 @@ public class WithdrawService {
     private BigDecimal requirePositiveAmount(BigDecimal amount) {
         var scaled = MoneyUtils.scale(amount);
         if (scaled.signum() <= 0) {
-            throw new BusinessException(ErrorCode.INVALID_AMOUNT, "Amount must be greater than 0");
+            throw new BusinessException(ErrorCode.INVALID_AMOUNT, "金额必须大于 0");
         }
         return scaled;
     }
@@ -292,7 +292,7 @@ public class WithdrawService {
                 .eq(WithdrawOrder::getWithdrawNo, withdrawNo)
                 .last("LIMIT 1"));
         if (order == null) {
-            throw new BusinessException(ErrorCode.NOT_FOUND, "Withdraw order not found");
+            throw new BusinessException(ErrorCode.NOT_FOUND, "提现订单不存在");
         }
         return order;
     }
@@ -302,7 +302,7 @@ public class WithdrawService {
                 .eq(WithdrawOrder::getWithdrawNo, withdrawNo)
                 .last("LIMIT 1"));
         if (order == null) {
-            throw new BusinessException(ErrorCode.NOT_FOUND, "Withdraw order not found");
+            throw new BusinessException(ErrorCode.NOT_FOUND, "提现订单不存在");
         }
         return order;
     }

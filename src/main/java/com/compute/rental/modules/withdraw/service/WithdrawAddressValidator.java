@@ -21,7 +21,7 @@ public class WithdrawAddressValidator {
             default -> false;
         };
         if (!valid) {
-            throw new BusinessException(ErrorCode.BAD_REQUEST, "Invalid withdraw address");
+            throw new BusinessException(ErrorCode.BAD_REQUEST, "提现地址无效");
         }
         return normalizedNetwork;
     }

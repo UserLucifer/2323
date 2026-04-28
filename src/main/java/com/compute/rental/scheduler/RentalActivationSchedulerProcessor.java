@@ -52,7 +52,7 @@ public class RentalActivationSchedulerProcessor {
                 .set(RentalOrder::getCanceledAt, now)
                 .set(RentalOrder::getUpdatedAt, now));
         if (updated == 0) {
-            throw new BusinessException(ErrorCode.CONCURRENT_UPDATE_FAILED, "Rental order status changed");
+            throw new BusinessException(ErrorCode.CONCURRENT_UPDATE_FAILED, "租赁订单状态已变化");
         }
         walletService.credit(
                 order.getUserId(),
@@ -82,7 +82,7 @@ public class RentalActivationSchedulerProcessor {
                 .eq(ApiCredential::getRentalOrderId, order.getId())
                 .last("LIMIT 1"));
         if (credential == null || !ApiTokenStatus.ACTIVATING.name().equals(credential.getTokenStatus())) {
-            throw new BusinessException(ErrorCode.BUSINESS_ERROR, "API credential is not activating");
+            throw new BusinessException(ErrorCode.BUSINESS_ERROR, "API 凭证未处于激活中");
         }
         var updatedOrder = rentalOrderMapper.update(null, new LambdaUpdateWrapper<RentalOrder>()
                 .eq(RentalOrder::getId, order.getId())
@@ -91,7 +91,7 @@ public class RentalActivationSchedulerProcessor {
                 .set(RentalOrder::getPausedAt, now)
                 .set(RentalOrder::getUpdatedAt, now));
         if (updatedOrder == 0) {
-            throw new BusinessException(ErrorCode.CONCURRENT_UPDATE_FAILED, "Rental order status changed");
+            throw new BusinessException(ErrorCode.CONCURRENT_UPDATE_FAILED, "租赁订单状态已变化");
         }
         var updatedCredential = apiCredentialMapper.update(null, new LambdaUpdateWrapper<ApiCredential>()
                 .eq(ApiCredential::getId, credential.getId())
@@ -100,7 +100,7 @@ public class RentalActivationSchedulerProcessor {
                 .set(ApiCredential::getPausedAt, now)
                 .set(ApiCredential::getUpdatedAt, now));
         if (updatedCredential == 0) {
-            throw new BusinessException(ErrorCode.CONCURRENT_UPDATE_FAILED, "API credential status changed");
+            throw new BusinessException(ErrorCode.CONCURRENT_UPDATE_FAILED, "API 凭证状态已变化");
         }
     }
 }

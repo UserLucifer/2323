@@ -44,17 +44,17 @@ public class AdminAuthService {
                 .eq(SysAdmin::getUsername, username)
                 .last("LIMIT 1"));
         if (admin == null) {
-            throw new BusinessException(ErrorCode.UNAUTHORIZED, "Invalid username or password");
+            throw new BusinessException(ErrorCode.UNAUTHORIZED, "用户名或密码错误");
         }
         if (!Integer.valueOf(CommonStatus.ENABLED.value()).equals(admin.getStatus())) {
             adminLogService.log(admin.getId(), AdminLogService.ADMIN_LOGIN_FAIL, "sys_admin", admin.getId(),
                     null, null, "Admin disabled", ip);
-            throw new BusinessException(ErrorCode.FORBIDDEN, "Admin account is disabled");
+            throw new BusinessException(ErrorCode.FORBIDDEN, "管理员账号已禁用");
         }
         if (!passwordEncoder.matches(request.password(), admin.getPasswordHash())) {
             adminLogService.log(admin.getId(), AdminLogService.ADMIN_LOGIN_FAIL, "sys_admin", admin.getId(),
                     null, null, "Bad credentials", ip);
-            throw new BusinessException(ErrorCode.UNAUTHORIZED, "Invalid username or password");
+            throw new BusinessException(ErrorCode.UNAUTHORIZED, "用户名或密码错误");
         }
 
         var now = DateTimeUtils.now();
@@ -87,10 +87,10 @@ public class AdminAuthService {
     private SysAdmin requireEnabledAdmin(Long adminId) {
         var admin = sysAdminMapper.selectById(adminId);
         if (admin == null) {
-            throw new BusinessException(ErrorCode.UNAUTHORIZED, "Admin not found");
+            throw new BusinessException(ErrorCode.UNAUTHORIZED, "管理员不存在");
         }
         if (!Integer.valueOf(CommonStatus.ENABLED.value()).equals(admin.getStatus())) {
-            throw new BusinessException(ErrorCode.FORBIDDEN, "Admin account is disabled");
+            throw new BusinessException(ErrorCode.FORBIDDEN, "管理员账号已禁用");
         }
         return admin;
     }

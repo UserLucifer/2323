@@ -18,7 +18,7 @@ public class FrontUserService {
     public UserMeResponse getMe(Long id) {
         var user = appUserMapper.selectById(id);
         if (user == null) {
-            throw new BusinessException(ErrorCode.UNAUTHORIZED, "User not found");
+            throw new BusinessException(ErrorCode.UNAUTHORIZED, "用户不存在");
         }
         return new UserMeResponse(user.getId(), user.getUserId(), user.getEmail(), user.getNickname(), user.getStatus());
     }

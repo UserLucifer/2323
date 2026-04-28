@@ -89,7 +89,7 @@ public class AuthService {
     public void sendSignupEmailCode(SendEmailCodeRequest request, String sendIp) {
         var email = codeHasher.normalizeEmail(request.email());
         if (findUserByEmail(email) != null) {
-            throw new BusinessException(ErrorCode.BAD_REQUEST, "Email is already registered");
+            throw new BusinessException(ErrorCode.BAD_REQUEST, "邮箱已注册");
         }
         var code = createEmailCode(email, EmailVerifyScene.SIGNUP, sendIp);
         emailService.sendSignupCode(email, code);
@@ -98,7 +98,7 @@ public class AuthService {
     public void verifySignupEmailCode(VerifyEmailCodeRequest request) {
         var email = codeHasher.normalizeEmail(request.email());
         if (findUserByEmail(email) != null) {
-            throw new BusinessException(ErrorCode.BAD_REQUEST, "Email is already registered");
+            throw new BusinessException(ErrorCode.BAD_REQUEST, "邮箱已注册");
         }
         verifyEmailCode(email, request.code(), EmailVerifyScene.SIGNUP, false);
     }
@@ -121,14 +121,14 @@ public class AuthService {
         var email = codeHasher.normalizeEmail(request.email());
         var user = findUserByEmail(email);
         if (user == null) {
-            throw new BusinessException(ErrorCode.UNAUTHORIZED, "Invalid email or password");
+            throw new BusinessException(ErrorCode.UNAUTHORIZED, "邮箱或密码错误");
         }
         if (!Integer.valueOf(CommonStatus.ENABLED.value()).equals(user.getStatus())) {
-            throw new BusinessException(ErrorCode.FORBIDDEN, "User is disabled");
+            throw new BusinessException(ErrorCode.FORBIDDEN, "用户已禁用");
         }
         if (!StringUtils.hasText(user.getPasswordHash())
                 || !passwordEncoder.matches(request.password(), user.getPasswordHash())) {
-            throw new BusinessException(ErrorCode.UNAUTHORIZED, "Invalid email or password");
+            throw new BusinessException(ErrorCode.UNAUTHORIZED, "邮箱或密码错误");
         }
 
         var now = DateTimeUtils.now();
@@ -143,7 +143,7 @@ public class AuthService {
     public LoginResponse signup(SignupRequest request) {
         var email = codeHasher.normalizeEmail(request.email());
         if (findUserByEmail(email) != null) {
-            throw new BusinessException(ErrorCode.BAD_REQUEST, "Email is already registered");
+            throw new BusinessException(ErrorCode.BAD_REQUEST, "邮箱已注册");
         }
         verifyEmailCode(email, request.code(), EmailVerifyScene.SIGNUP, true);
         var user = registerUser(
@@ -201,7 +201,7 @@ public class AuthService {
             redisTemplate.expire(key, Duration.ofSeconds(60));
         }
         if (count != null && count > authProperties.rateLimitPerMinute()) {
-            throw new BusinessException(ErrorCode.TOO_MANY_REQUESTS, "Email code send limit exceeded");
+            throw new BusinessException(ErrorCode.TOO_MANY_REQUESTS, "邮箱验证码发送过于频繁");
         }
     }
 
@@ -215,11 +215,11 @@ public class AuthService {
                 .orderByDesc(EmailVerifyCode::getId)
                 .last("LIMIT 1"));
         if (code == null) {
-            throw new BusinessException(ErrorCode.BAD_REQUEST, "Invalid or expired email code");
+            throw new BusinessException(ErrorCode.BAD_REQUEST, "邮箱验证码无效或已过期");
         }
         var expectedHash = codeHasher.hash(email, scene.name(), rawCode);
         if (!expectedHash.equals(code.getCodeHash())) {
-            throw new BusinessException(ErrorCode.BAD_REQUEST, "Invalid or expired email code");
+            throw new BusinessException(ErrorCode.BAD_REQUEST, "邮箱验证码无效或已过期");
         }
         if (!consume) {
             return;
@@ -257,7 +257,7 @@ public class AuthService {
         var parent = userReferralRelationMapper.selectOne(new LambdaQueryWrapper<UserReferralRelation>()
                 .eq(UserReferralRelation::getInviteCode, inviteCode));
         if (parent == null) {
-            throw new BusinessException(ErrorCode.BAD_REQUEST, "Invalid invite code");
+            throw new BusinessException(ErrorCode.BAD_REQUEST, "邀请码无效");
         }
         return parent;
     }
@@ -335,7 +335,7 @@ public class AuthService {
     private AppUser requireUserByEmail(String email) {
         var user = findUserByEmail(email);
         if (user == null) {
-            throw new BusinessException(ErrorCode.BAD_REQUEST, "Email is not registered");
+            throw new BusinessException(ErrorCode.BAD_REQUEST, "邮箱未注册");
         }
         return user;
     }
@@ -343,7 +343,7 @@ public class AuthService {
     private AppUser requireEnabledUserByEmail(String email) {
         var user = requireUserByEmail(email);
         if (!Integer.valueOf(CommonStatus.ENABLED.value()).equals(user.getStatus())) {
-            throw new BusinessException(ErrorCode.FORBIDDEN, "User is disabled");
+            throw new BusinessException(ErrorCode.FORBIDDEN, "用户已禁用");
         }
         return user;
     }

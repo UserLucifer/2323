@@ -23,7 +23,7 @@ public final class MoneyUtils {
     public static BigDecimal requireNonNegative(BigDecimal amount) {
         var scaled = scale(amount);
         if (scaled.signum() < 0) {
-            throw new BusinessException(ErrorCode.BAD_REQUEST, "Amount must be non-negative");
+            throw new BusinessException(ErrorCode.BAD_REQUEST, "金额不能为负数");
         }
         return scaled;
     }

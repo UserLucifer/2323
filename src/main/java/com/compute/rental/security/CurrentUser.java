@@ -12,7 +12,7 @@ public final class CurrentUser {
     public static JwtPrincipal required() {
         var authentication = SecurityContextHolder.getContext().getAuthentication();
         if (authentication == null || !(authentication.getPrincipal() instanceof JwtPrincipal principal)) {
-            throw new BusinessException(ErrorCode.UNAUTHORIZED, "Login required");
+            throw new BusinessException(ErrorCode.UNAUTHORIZED, "请先登录");
         }
         return principal;
     }
@@ -20,7 +20,7 @@ public final class CurrentUser {
     public static JwtPrincipal requiredAdmin() {
         var principal = required();
         if (!principal.isAdmin()) {
-            throw new BusinessException(ErrorCode.FORBIDDEN, "Admin token required");
+            throw new BusinessException(ErrorCode.FORBIDDEN, "需要管理员令牌");
         }
         return principal;
     }

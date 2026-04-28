@@ -82,7 +82,7 @@ public class SettlementService {
                 .eq(RentalSettlementOrder::getSettlementNo, settlementNo)
                 .last("LIMIT 1"));
         if (settlement == null) {
-            throw new BusinessException(ErrorCode.NOT_FOUND, "Settlement order not found");
+            throw new BusinessException(ErrorCode.NOT_FOUND, "结算订单不存在");
         }
         return toResponse(settlement);
     }
@@ -96,7 +96,7 @@ public class SettlementService {
         }
         if (!RentalOrderStatus.RUNNING.name().equals(order.getOrderStatus())
                 && !RentalOrderStatus.PAUSED.name().equals(order.getOrderStatus())) {
-            throw new BusinessException(ErrorCode.BUSINESS_ERROR, "Only running or paused rental orders can be settled early");
+            throw new BusinessException(ErrorCode.BUSINESS_ERROR, "仅运行中或已暂停租赁订单可提前结算");
         }
         var now = DateTimeUtils.now();
         var locked = rentalOrderMapper.update(null, new LambdaUpdateWrapper<RentalOrder>()
@@ -106,7 +106,7 @@ public class SettlementService {
                 .set(RentalOrder::getSettlementStatus, RentalOrderSettlementStatus.SETTLING.name())
                 .set(RentalOrder::getUpdatedAt, now));
         if (locked == 0) {
-            throw new BusinessException(ErrorCode.CONCURRENT_UPDATE_FAILED, "Rental order status changed");
+            throw new BusinessException(ErrorCode.CONCURRENT_UPDATE_FAILED, "租赁订单状态已变化");
         }
         var profitAmount = settledProfitAmount(order.getId());
         var penaltyAmount = MoneyUtils.scale(order.getOrderAmount().multiply(order.getEarlyPenaltyRateSnapshot()));
@@ -147,7 +147,7 @@ public class SettlementService {
                 .set(RentalOrder::getFinishedAt, now)
                 .set(RentalOrder::getUpdatedAt, now));
         if (updated == 0) {
-            throw new BusinessException(ErrorCode.CONCURRENT_UPDATE_FAILED, "Rental order status changed");
+            throw new BusinessException(ErrorCode.CONCURRENT_UPDATE_FAILED, "租赁订单状态已变化");
         }
         apiCredentialMapper.update(null, new LambdaUpdateWrapper<ApiCredential>()
                 .eq(ApiCredential::getRentalOrderId, order.getId())
@@ -174,7 +174,7 @@ public class SettlementService {
                 .set(RentalOrder::getSettlementStatus, RentalOrderSettlementStatus.SETTLING.name())
                 .set(RentalOrder::getUpdatedAt, now));
         if (locked == 0) {
-            throw new BusinessException(ErrorCode.CONCURRENT_UPDATE_FAILED, "Rental order status changed");
+            throw new BusinessException(ErrorCode.CONCURRENT_UPDATE_FAILED, "租赁订单状态已变化");
         }
         var profitAmount = settledProfitAmount(order.getId());
         var settlement = buildSettlement(order, RentalSettlementType.EXPIRE, profitAmount,
@@ -202,7 +202,7 @@ public class SettlementService {
                 .set(RentalOrder::getFinishedAt, now)
                 .set(RentalOrder::getUpdatedAt, now));
         if (updated == 0) {
-            throw new BusinessException(ErrorCode.CONCURRENT_UPDATE_FAILED, "Rental order status changed");
+            throw new BusinessException(ErrorCode.CONCURRENT_UPDATE_FAILED, "租赁订单状态已变化");
         }
         apiCredentialMapper.update(null, new LambdaUpdateWrapper<ApiCredential>()
                 .eq(ApiCredential::getRentalOrderId, order.getId())
@@ -266,7 +266,7 @@ public class SettlementService {
                 .eq(RentalOrder::getOrderNo, orderNo)
                 .last("LIMIT 1"));
         if (order == null) {
-            throw new BusinessException(ErrorCode.NOT_FOUND, "Rental order not found");
+            throw new BusinessException(ErrorCode.NOT_FOUND, "租赁订单不存在");
         }
         return order;
     }

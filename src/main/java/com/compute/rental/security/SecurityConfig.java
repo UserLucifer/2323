@@ -41,8 +41,8 @@ public class SecurityConfig {
                 .csrf(AbstractHttpConfigurer::disable)
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .exceptionHandling(exception -> exception
-                        .authenticationEntryPoint((request, response, ex) -> writeSecurityError(response, 401, "Unauthorized"))
-                        .accessDeniedHandler((request, response, ex) -> writeSecurityError(response, 403, "Forbidden")))
+                        .authenticationEntryPoint((request, response, ex) -> writeSecurityError(response, 401, "未登录或登录已过期"))
+                        .accessDeniedHandler((request, response, ex) -> writeSecurityError(response, 403, "无权限访问")))
                 .authorizeHttpRequests(authorize -> authorize
                         .requestMatchers(publicEndpointMatchers()).permitAll()
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()

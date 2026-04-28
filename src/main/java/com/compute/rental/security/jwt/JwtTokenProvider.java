@@ -65,7 +65,7 @@ public class JwtTokenProvider {
                     identityType(claims.get("identityType", String.class)).name()
             );
         } catch (JwtException | IllegalArgumentException ex) {
-            throw new BusinessException(ErrorCode.UNAUTHORIZED, "Invalid JWT token");
+            throw new BusinessException(ErrorCode.UNAUTHORIZED, "登录令牌无效");
         }
     }
 

@@ -76,11 +76,11 @@ public class RechargeService {
         var channel = requireEnabledChannel(request.channelId());
         var amount = MoneyUtils.requireNonNegative(request.applyAmount());
         if (amount.signum() <= 0) {
-            throw new BusinessException(ErrorCode.INVALID_AMOUNT, "Recharge amount must be greater than 0");
+            throw new BusinessException(ErrorCode.INVALID_AMOUNT, "充值金额必须大于 0");
         }
         var minAmount = effectiveMinAmount(channel);
         if (amount.compareTo(minAmount) < 0) {
-            throw new BusinessException(ErrorCode.BAD_REQUEST, "Recharge amount is below minimum amount");
+            throw new BusinessException(ErrorCode.BAD_REQUEST, "充值金额低于最低金额");
         }
         var externalTxNo = normalizeExternalTxNo(request.externalTxNo());
         ensureExternalTxNoAvailable(externalTxNo);
@@ -107,7 +107,7 @@ public class RechargeService {
         try {
             rechargeOrderMapper.insert(order);
         } catch (DuplicateKeyException ex) {
-            throw new BusinessException(ErrorCode.IDEMPOTENCY_CONFLICT, "Duplicate recharge order or external transaction number");
+            throw new BusinessException(ErrorCode.IDEMPOTENCY_CONFLICT, "充值订单或外部交易号重复");
         }
         return toOrderResponse(order);
     }
@@ -134,7 +134,7 @@ public class RechargeService {
     public void cancelUserOrder(Long userId, String rechargeNo) {
         var order = requireUserOrder(userId, rechargeNo);
         if (!RechargeOrderStatus.SUBMITTED.name().equals(order.getStatus())) {
-            throw new BusinessException(ErrorCode.BUSINESS_ERROR, "Only submitted recharge orders can be canceled");
+            throw new BusinessException(ErrorCode.BUSINESS_ERROR, "仅已提交充值订单可取消");
         }
         var updated = rechargeOrderMapper.update(null, new LambdaUpdateWrapper<RechargeOrder>()
                 .eq(RechargeOrder::getId, order.getId())
@@ -142,7 +142,7 @@ public class RechargeService {
                 .set(RechargeOrder::getStatus, RechargeOrderStatus.CANCELED.name())
                 .set(RechargeOrder::getUpdatedAt, DateTimeUtils.now()));
         if (updated == 0) {
-            throw new BusinessException(ErrorCode.CONCURRENT_UPDATE_FAILED, "Recharge order status changed");
+            throw new BusinessException(ErrorCode.CONCURRENT_UPDATE_FAILED, "充值订单状态已变化");
         }
     }
 
@@ -167,11 +167,11 @@ public class RechargeService {
     public RechargeOrderResponse approve(String rechargeNo, Long reviewedBy, AdminApproveRechargeRequest request) {
         var order = requireOrder(rechargeNo);
         if (!RechargeOrderStatus.SUBMITTED.name().equals(order.getStatus())) {
-            throw new BusinessException(ErrorCode.BUSINESS_ERROR, "Only submitted recharge orders can be approved");
+            throw new BusinessException(ErrorCode.BUSINESS_ERROR, "仅已提交充值订单可审核通过");
         }
         var actualAmount = MoneyUtils.requireNonNegative(request.actualAmount());
         if (actualAmount.signum() <= 0) {
-            throw new BusinessException(ErrorCode.INVALID_AMOUNT, "Actual amount must be greater than 0");
+            throw new BusinessException(ErrorCode.INVALID_AMOUNT, "实际到账金额必须大于 0");
         }
         var now = DateTimeUtils.now();
         var updated = rechargeOrderMapper.update(null, new LambdaUpdateWrapper<RechargeOrder>()
@@ -185,7 +185,7 @@ public class RechargeService {
                 .set(RechargeOrder::getCreditedAt, now)
                 .set(RechargeOrder::getUpdatedAt, now));
         if (updated == 0) {
-            throw new BusinessException(ErrorCode.CONCURRENT_UPDATE_FAILED, "Recharge order status changed");
+            throw new BusinessException(ErrorCode.CONCURRENT_UPDATE_FAILED, "充值订单状态已变化");
         }
 
         var tx = walletService.credit(
@@ -208,7 +208,7 @@ public class RechargeService {
     public RechargeOrderResponse reject(String rechargeNo, Long reviewedBy, AdminRejectRechargeRequest request) {
         var order = requireOrder(rechargeNo);
         if (!RechargeOrderStatus.SUBMITTED.name().equals(order.getStatus())) {
-            throw new BusinessException(ErrorCode.BUSINESS_ERROR, "Only submitted recharge orders can be rejected");
+            throw new BusinessException(ErrorCode.BUSINESS_ERROR, "仅已提交充值订单可驳回");
         }
         var now = DateTimeUtils.now();
         var updated = rechargeOrderMapper.update(null, new LambdaUpdateWrapper<RechargeOrder>()
@@ -220,7 +220,7 @@ public class RechargeService {
                 .set(RechargeOrder::getReviewRemark, trimToNull(request.reviewRemark()))
                 .set(RechargeOrder::getUpdatedAt, now));
         if (updated == 0) {
-            throw new BusinessException(ErrorCode.CONCURRENT_UPDATE_FAILED, "Recharge order status changed");
+            throw new BusinessException(ErrorCode.CONCURRENT_UPDATE_FAILED, "充值订单状态已变化");
         }
         return getAdminOrder(rechargeNo);
     }
@@ -228,7 +228,7 @@ public class RechargeService {
     private RechargeChannel requireEnabledChannel(Long channelId) {
         var channel = rechargeChannelMapper.selectById(channelId);
         if (channel == null || !Integer.valueOf(CommonStatus.ENABLED.value()).equals(channel.getStatus())) {
-            throw new BusinessException(ErrorCode.BAD_REQUEST, "Recharge channel is unavailable");
+            throw new BusinessException(ErrorCode.BAD_REQUEST, "充值渠道不可用");
         }
         return channel;
     }
@@ -262,7 +262,7 @@ public class RechargeService {
                 .eq(RechargeOrder::getExternalTxNo, externalTxNo)
                 .last("LIMIT 1"));
         if (existing != null) {
-            throw new BusinessException(ErrorCode.IDEMPOTENCY_CONFLICT, "Duplicate external transaction number");
+            throw new BusinessException(ErrorCode.IDEMPOTENCY_CONFLICT, "外部交易号重复");
         }
     }
 
@@ -272,7 +272,7 @@ public class RechargeService {
                 .eq(RechargeOrder::getRechargeNo, rechargeNo)
                 .last("LIMIT 1"));
         if (order == null) {
-            throw new BusinessException(ErrorCode.NOT_FOUND, "Recharge order not found");
+            throw new BusinessException(ErrorCode.NOT_FOUND, "充值订单不存在");
         }
         return order;
     }
@@ -282,7 +282,7 @@ public class RechargeService {
                 .eq(RechargeOrder::getRechargeNo, rechargeNo)
                 .last("LIMIT 1"));
         if (order == null) {
-            throw new BusinessException(ErrorCode.NOT_FOUND, "Recharge order not found");
+            throw new BusinessException(ErrorCode.NOT_FOUND, "充值订单不存在");
         }
         return order;
     }

@@ -92,7 +92,7 @@ public class ProfitService {
         if (request.rentalOrderId() != null) {
             var order = rentalOrderMapper.selectById(request.rentalOrderId());
             if (order == null || !userId.equals(order.getUserId())) {
-                throw new BusinessException(ErrorCode.NOT_FOUND, "Rental order not found");
+                throw new BusinessException(ErrorCode.NOT_FOUND, "租赁订单不存在");
             }
             return order.getId();
         }
@@ -149,7 +149,7 @@ public class ProfitService {
                 .eq(RentalOrder::getOrderNo, orderNo)
                 .last("LIMIT 1"));
         if (order == null) {
-            throw new BusinessException(ErrorCode.NOT_FOUND, "Rental order not found");
+            throw new BusinessException(ErrorCode.NOT_FOUND, "租赁订单不存在");
         }
         return order;
     }

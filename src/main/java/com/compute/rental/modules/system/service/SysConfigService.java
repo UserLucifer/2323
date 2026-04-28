@@ -42,7 +42,7 @@ public class SysConfigService {
         if (defaultValue != null) {
             return defaultValue;
         }
-        throw new BusinessException(ErrorCode.BUSINESS_ERROR, "Missing system config: " + key);
+        throw new BusinessException(ErrorCode.BUSINESS_ERROR, "缺少系统配置：" + key);
     }
 
     public BigDecimal getBigDecimal(String key) {
@@ -99,7 +99,7 @@ public class SysConfigService {
                 .set(SysConfig::getConfigDesc, trimToNull(request.configDesc()))
                 .set(SysConfig::getUpdatedAt, now));
         if (updated == 0) {
-            throw new BusinessException(ErrorCode.CONCURRENT_UPDATE_FAILED, "System config update failed");
+            throw new BusinessException(ErrorCode.CONCURRENT_UPDATE_FAILED, "系统配置更新失败");
         }
         var after = sysConfigMapper.selectById(config.getId());
         adminLogService.log(adminId, AdminLogService.UPDATE_SYS_CONFIG, "sys_config", config.getId(),
@@ -112,7 +112,7 @@ public class SysConfigService {
                 .eq(SysConfig::getConfigKey, configKey)
                 .last("LIMIT 1"));
         if (config == null) {
-            throw new BusinessException(ErrorCode.NOT_FOUND, "System config not found");
+            throw new BusinessException(ErrorCode.NOT_FOUND, "系统配置不存在");
         }
         return config;
     }

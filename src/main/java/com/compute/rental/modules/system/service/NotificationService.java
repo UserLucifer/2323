@@ -159,7 +159,7 @@ public class NotificationService {
                 .eq(SysNotification::getUserId, userId)
                 .last("LIMIT 1"));
         if (notification == null) {
-            throw new BusinessException(ErrorCode.NOT_FOUND, "Notification not found");
+            throw new BusinessException(ErrorCode.NOT_FOUND, "通知不存在");
         }
         return notification;
     }
@@ -167,14 +167,14 @@ public class NotificationService {
     private SysNotification requireNotification(Long id) {
         var notification = notificationMapper.selectById(id);
         if (notification == null) {
-            throw new BusinessException(ErrorCode.NOT_FOUND, "Notification not found");
+            throw new BusinessException(ErrorCode.NOT_FOUND, "通知不存在");
         }
         return notification;
     }
 
     private void requireUser(Long userId) {
         if (appUserMapper.selectById(userId) == null) {
-            throw new BusinessException(ErrorCode.NOT_FOUND, "User not found");
+            throw new BusinessException(ErrorCode.NOT_FOUND, "用户不存在");
         }
     }
 }

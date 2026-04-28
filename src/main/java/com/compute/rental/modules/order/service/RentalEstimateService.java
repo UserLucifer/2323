@@ -64,7 +64,7 @@ public class RentalEstimateService {
     private Product requireEnabledProduct(Long productId) {
         var product = productMapper.selectById(productId);
         if (product == null || !Integer.valueOf(CommonStatus.ENABLED.value()).equals(product.getStatus())) {
-            throw new BusinessException(ErrorCode.NOT_FOUND, "Product not found");
+            throw new BusinessException(ErrorCode.NOT_FOUND, "产品不存在");
         }
         return product;
     }
@@ -72,7 +72,7 @@ public class RentalEstimateService {
     private AiModel requireEnabledAiModel(Long aiModelId) {
         var aiModel = aiModelMapper.selectById(aiModelId);
         if (aiModel == null || !Integer.valueOf(CommonStatus.ENABLED.value()).equals(aiModel.getStatus())) {
-            throw new BusinessException(ErrorCode.NOT_FOUND, "AI model not found");
+            throw new BusinessException(ErrorCode.NOT_FOUND, "AI 模型不存在");
         }
         return aiModel;
     }
@@ -80,7 +80,7 @@ public class RentalEstimateService {
     private RentalCycleRule requireEnabledCycleRule(Long cycleRuleId) {
         var cycleRule = rentalCycleRuleMapper.selectById(cycleRuleId);
         if (cycleRule == null || !Integer.valueOf(CommonStatus.ENABLED.value()).equals(cycleRule.getStatus())) {
-            throw new BusinessException(ErrorCode.NOT_FOUND, "Rental cycle rule not found");
+            throw new BusinessException(ErrorCode.NOT_FOUND, "租赁周期规则不存在");
         }
         return cycleRule;
     }

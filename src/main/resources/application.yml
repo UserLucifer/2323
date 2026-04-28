@@ -27,7 +27,7 @@ spring:
       host: ${REDIS_HOST:localhost}
       port: ${REDIS_PORT:6379}
       database: ${REDIS_DATABASE:0}
-      password:${REDIS_PASSWORD:}
+      password: ${REDIS_PASSWORD:}
       timeout: 3s
   rabbitmq:
     host: ${RABBITMQ_HOST:localhost}
@@ -82,7 +82,7 @@ app:
   jwt:
     issuer: compute-rental
     secret: dev-only-change-me-32-bytes-minimum-secret
-    access-token-ttl: 2h
+    access-token-ttl: 24h
   api-token:
     encryption-secret: dev-only-token-secret-change-me
     base-url: https://api.example.invalid/v1

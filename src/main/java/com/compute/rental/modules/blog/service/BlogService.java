@@ -77,7 +77,7 @@ public class BlogService {
                 .eq(BlogPost::getPublishStatus, BlogPublishStatus.PUBLISHED.value())
                 .last("LIMIT 1"));
         if (post == null) {
-            throw new BusinessException(ErrorCode.NOT_FOUND, "Blog post not found");
+            throw new BusinessException(ErrorCode.NOT_FOUND, "博客文章不存在");
         }
         postMapper.update(null, new LambdaUpdateWrapper<BlogPost>()
                 .eq(BlogPost::getId, id)
@@ -346,7 +346,7 @@ public class BlogService {
     private BlogCategory requireCategory(Long id) {
         var category = categoryMapper.selectById(id);
         if (category == null) {
-            throw new BusinessException(ErrorCode.NOT_FOUND, "Blog category not found");
+            throw new BusinessException(ErrorCode.NOT_FOUND, "博客分类不存在");
         }
         return category;
     }
@@ -354,7 +354,7 @@ public class BlogService {
     private BlogTag requireTag(Long id) {
         var tag = tagMapper.selectById(id);
         if (tag == null) {
-            throw new BusinessException(ErrorCode.NOT_FOUND, "Blog tag not found");
+            throw new BusinessException(ErrorCode.NOT_FOUND, "博客标签不存在");
         }
         return tag;
     }
@@ -362,7 +362,7 @@ public class BlogService {
     private BlogPost requirePost(Long id) {
         var post = postMapper.selectById(id);
         if (post == null) {
-            throw new BusinessException(ErrorCode.NOT_FOUND, "Blog post not found");
+            throw new BusinessException(ErrorCode.NOT_FOUND, "博客文章不存在");
         }
         return post;
     }

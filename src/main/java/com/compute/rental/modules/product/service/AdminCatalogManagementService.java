@@ -300,7 +300,7 @@ public class AdminCatalogManagementService {
     private Region requireRegion(Long id) {
         var region = regionMapper.selectById(id);
         if (region == null) {
-            throw new BusinessException(ErrorCode.NOT_FOUND, "Region not found");
+            throw new BusinessException(ErrorCode.NOT_FOUND, "地区不存在");
         }
         return region;
     }
@@ -308,7 +308,7 @@ public class AdminCatalogManagementService {
     private GpuModel requireGpuModel(Long id) {
         var gpuModel = gpuModelMapper.selectById(id);
         if (gpuModel == null) {
-            throw new BusinessException(ErrorCode.NOT_FOUND, "GPU model not found");
+            throw new BusinessException(ErrorCode.NOT_FOUND, "GPU 型号不存在");
         }
         return gpuModel;
     }
@@ -318,7 +318,7 @@ public class AdminCatalogManagementService {
                 .eq(Product::getProductCode, productCode)
                 .last("LIMIT 1"));
         if (product == null) {
-            throw new BusinessException(ErrorCode.NOT_FOUND, "Product not found");
+            throw new BusinessException(ErrorCode.NOT_FOUND, "产品不存在");
         }
         return product;
     }
@@ -328,7 +328,7 @@ public class AdminCatalogManagementService {
                 .eq(AiModel::getModelCode, modelCode)
                 .last("LIMIT 1"));
         if (model == null) {
-            throw new BusinessException(ErrorCode.NOT_FOUND, "AI model not found");
+            throw new BusinessException(ErrorCode.NOT_FOUND, "AI 模型不存在");
         }
         return model;
     }
@@ -338,7 +338,7 @@ public class AdminCatalogManagementService {
                 .eq(RentalCycleRule::getCycleCode, cycleCode)
                 .last("LIMIT 1"));
         if (rule == null) {
-            throw new BusinessException(ErrorCode.NOT_FOUND, "Rental cycle rule not found");
+            throw new BusinessException(ErrorCode.NOT_FOUND, "租赁周期规则不存在");
         }
         return rule;
     }
