@@ -23,6 +23,9 @@ public class RentalProfitRecord {
     @TableField(exist = false)
     private String userName;
 
+    @TableField(exist = false)
+    private String nickname;
+
     @TableField("rental_order_id")
     private Long rentalOrderId;
 
@@ -95,6 +98,14 @@ public class RentalProfitRecord {
 
     public void setUserName(String userName) {
         this.userName = userName;
+    }
+
+    public String getNickname() {
+        return nickname;
+    }
+
+    public void setNickname(String nickname) {
+        this.nickname = nickname;
     }
 
     public Long getRentalOrderId() {

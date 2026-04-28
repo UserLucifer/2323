@@ -25,6 +25,9 @@ public class WalletTransaction {
     @TableField(exist = false)
     private String userName;
 
+    @TableField(exist = false)
+    private String nickname;
+
     @TableField("wallet_id")
     private Long walletId;
 
@@ -99,6 +102,14 @@ public class WalletTransaction {
 
     public void setUserName(String userName) {
         this.userName = userName;
+    }
+
+    public String getNickname() {
+        return nickname;
+    }
+
+    public void setNickname(String nickname) {
+        this.nickname = nickname;
     }
 
     public Long getWalletId() {

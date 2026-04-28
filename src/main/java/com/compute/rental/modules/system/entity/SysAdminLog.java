@@ -15,6 +15,9 @@ public class SysAdminLog {
     @TableField("admin_id")
     private Long adminId;
 
+    @TableField(exist = false)
+    private String operatorName;
+
     @TableField("action")
     private String action;
 
@@ -53,6 +56,14 @@ public class SysAdminLog {
 
     public void setAdminId(Long adminId) {
         this.adminId = adminId;
+    }
+
+    public String getOperatorName() {
+        return operatorName;
+    }
+
+    public void setOperatorName(String operatorName) {
+        this.operatorName = operatorName;
     }
 
     public String getAction() {

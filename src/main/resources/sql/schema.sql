@@ -569,7 +569,6 @@ CREATE TABLE `sys_admin` (
   `id`            BIGINT NOT NULL AUTO_INCREMENT COMMENT '主键ID',
   `username`      VARCHAR(64) NOT NULL COMMENT '管理员登录名，唯一',
   `password_hash` VARCHAR(255) NOT NULL COMMENT '后台登录密码哈希',
-  `nickname`      VARCHAR(64) DEFAULT NULL COMMENT '管理员昵称',
   `role`          VARCHAR(20) NOT NULL DEFAULT 'ADMIN' COMMENT '角色：SUPER_ADMIN-超级管理员，ADMIN-普通管理员',
   `status`        TINYINT NOT NULL DEFAULT 1 COMMENT '状态：1-正常，0-禁用F',
   `last_login_at` DATETIME DEFAULT NULL COMMENT '最后登录时间',

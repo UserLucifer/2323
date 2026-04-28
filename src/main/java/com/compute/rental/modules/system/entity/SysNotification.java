@@ -15,6 +15,9 @@ public class SysNotification {
     @TableField("user_id")
     private Long userId;
 
+    @TableField(exist = false)
+    private String nickname;
+
     @TableField("title")
     private String title;
 
@@ -53,6 +56,14 @@ public class SysNotification {
 
     public void setUserId(Long userId) {
         this.userId = userId;
+    }
+
+    public String getNickname() {
+        return nickname;
+    }
+
+    public void setNickname(String nickname) {
+        this.nickname = nickname;
     }
 
     public String getTitle() {
