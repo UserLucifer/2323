@@ -57,10 +57,13 @@ public class ProductCatalogService {
                 .toList();
     }
 
-    public List<GpuModelResponse> listEnabledGpuModels() {
-        return gpuModelMapper.selectList(new LambdaQueryWrapper<GpuModel>()
+    public List<GpuModelResponse> listEnabledGpuModels(Long regionId) {
+        var models = regionId == null
+                ? gpuModelMapper.selectList(new LambdaQueryWrapper<GpuModel>()
                         .eq(GpuModel::getStatus, CommonStatus.ENABLED.value())
                         .orderByAsc(GpuModel::getSortNo))
+                : gpuModelMapper.selectEnabledByRegionId(regionId);
+        return models
                 .stream()
                 .map(model -> new GpuModelResponse(model.getId(), model.getModelCode(), model.getModelName()))
                 .toList();

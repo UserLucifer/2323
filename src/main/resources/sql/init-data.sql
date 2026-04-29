@@ -18,6 +18,24 @@ INSERT INTO `commission_rule` (`level_no`, `commission_rate`, `status`) VALUES
 (2, 0.1000, 1),
 (3, 0.0500, 1);
 
+INSERT INTO `recharge_channel` (
+  `channel_code`, `channel_name`, `network`, `display_url`, `account_name`, `account_no`,
+  `min_amount`, `max_amount`, `fee_rate`, `sort_no`, `status`
+) VALUES
+('USDT_TRC20', 'USDT-TRC20', 'TRC20', NULL, 'Configure receiving account', 'Configure TRC20 receiving address', 100.00000000, 100000.00000000, 0.00000000, 1, 0),
+('USDT_ERC20', 'USDT-ERC20', 'ERC20', NULL, 'Configure receiving account', 'Configure ERC20 receiving address', 100.00000000, 100000.00000000, 0.00000000, 2, 0),
+('USDT_BEP20', 'USDT-BEP20', 'BEP20', NULL, 'Configure receiving account', 'Configure BEP20 receiving address', 100.00000000, 100000.00000000, 0.00000000, 3, 0)
+ON DUPLICATE KEY UPDATE
+  `channel_name` = VALUES(`channel_name`),
+  `network` = VALUES(`network`),
+  `display_url` = VALUES(`display_url`),
+  `account_name` = VALUES(`account_name`),
+  `account_no` = VALUES(`account_no`),
+  `min_amount` = VALUES(`min_amount`),
+  `max_amount` = VALUES(`max_amount`),
+  `fee_rate` = VALUES(`fee_rate`),
+  `sort_no` = VALUES(`sort_no`);
+
 INSERT INTO `ai_model` (
   `model_code`, `model_name`, `vendor_name`, `logo_url`,
   `monthly_token_consumption_trillion`, `token_unit_price`, `deploy_tech_fee`,

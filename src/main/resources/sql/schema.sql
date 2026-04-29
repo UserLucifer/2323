@@ -275,6 +275,7 @@ CREATE TABLE `product` (
   KEY `idx_machine_code` (`machine_code`),
   KEY `idx_region_id` (`region_id`),
   KEY `idx_gpu_model_id` (`gpu_model_id`),
+  KEY `idx_product_region_status_gpu` (`region_id`, `status`, `gpu_model_id`),
   KEY `idx_status_sort` (`status`, `sort_no`),
   KEY `idx_rentable_until` (`rentable_until`),
   CONSTRAINT `fk_product_region` FOREIGN KEY (`region_id`) REFERENCES `region` (`id`),

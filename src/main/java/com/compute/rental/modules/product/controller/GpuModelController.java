@@ -8,6 +8,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import java.util.List;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 @Tag(name = "Product Catalog")
@@ -23,7 +24,9 @@ public class GpuModelController {
 
     @Operation(summary = "Enabled GPU models")
     @GetMapping
-    public ApiResponse<List<GpuModelResponse>> gpuModels() {
-        return ApiResponse.success(productCatalogService.listEnabledGpuModels());
+    public ApiResponse<List<GpuModelResponse>> gpuModels(
+            @RequestParam(required = false) Long regionId
+    ) {
+        return ApiResponse.success(productCatalogService.listEnabledGpuModels(regionId));
     }
 }
