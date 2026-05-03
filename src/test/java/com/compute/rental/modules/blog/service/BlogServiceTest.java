@@ -11,6 +11,7 @@ import com.baomidou.mybatisplus.core.metadata.TableInfoHelper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.compute.rental.common.enums.BlogPublishStatus;
 import com.compute.rental.common.enums.CommonStatus;
+import com.compute.rental.modules.blog.dto.BlogCategoryRequest;
 import com.compute.rental.modules.blog.dto.BlogPostRequest;
 import com.compute.rental.modules.blog.entity.BlogCategory;
 import com.compute.rental.modules.blog.entity.BlogPost;
@@ -71,8 +72,26 @@ class BlogServiceTest {
         var categories = blogService.publicCategories();
 
         assertThat(categories).hasSize(1);
-        assertThat(categories.get(0).getStatus()).isEqualTo(CommonStatus.ENABLED.value());
+        assertThat(categories.get(0).status()).isEqualTo(CommonStatus.ENABLED.value());
         verify(categoryMapper).selectList(any());
+    }
+
+    @Test
+    void createCategoryShouldReturnResponseDtoAndWriteAdminLog() {
+        when(categoryMapper.insert(any(BlogCategory.class))).thenAnswer(invocation -> {
+            BlogCategory category = invocation.getArgument(0);
+            category.setId(7L);
+            return 1;
+        });
+
+        var result = blogService.createCategory(
+                new BlogCategoryRequest("news", 1, null), 1L, "127.0.0.1");
+
+        assertThat(result.id()).isEqualTo(7L);
+        assertThat(result.categoryName()).isEqualTo("news");
+        assertThat(result.status()).isEqualTo(CommonStatus.ENABLED.value());
+        verify(adminLogService).log(eq(1L), eq("CREATE_BLOG_CATEGORY"), eq("blog_category"), eq(7L),
+                isNull(), isNull(), eq("news"), eq("127.0.0.1"));
     }
 
     @Test

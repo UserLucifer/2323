@@ -9,8 +9,12 @@ import com.compute.rental.common.enums.ErrorCode;
 import com.compute.rental.common.exception.BusinessException;
 import com.compute.rental.common.page.PageResult;
 import com.compute.rental.common.util.DateTimeUtils;
+import com.compute.rental.modules.blog.dto.BlogCategoryRequest;
+import com.compute.rental.modules.blog.dto.BlogCategoryResponse;
 import com.compute.rental.modules.blog.dto.BlogPostResponse;
 import com.compute.rental.modules.blog.dto.BlogPostRequest;
+import com.compute.rental.modules.blog.dto.BlogTagRequest;
+import com.compute.rental.modules.blog.dto.BlogTagResponse;
 import com.compute.rental.modules.blog.entity.BlogCategory;
 import com.compute.rental.modules.blog.entity.BlogPost;
 import com.compute.rental.modules.blog.entity.BlogPostTag;
@@ -50,18 +54,24 @@ public class BlogService {
         this.adminLogService = adminLogService;
     }
 
-    public List<BlogCategory> publicCategories() {
+    public List<BlogCategoryResponse> publicCategories() {
         return categoryMapper.selectList(new LambdaQueryWrapper<BlogCategory>()
                 .eq(BlogCategory::getStatus, CommonStatus.ENABLED.value())
                 .orderByAsc(BlogCategory::getSortNo)
-                .orderByDesc(BlogCategory::getId));
+                .orderByDesc(BlogCategory::getId))
+                .stream()
+                .map(this::categoryResponse)
+                .toList();
     }
 
-    public List<BlogTag> publicTags() {
+    public List<BlogTagResponse> publicTags() {
         return tagMapper.selectList(new LambdaQueryWrapper<BlogTag>()
                 .eq(BlogTag::getStatus, CommonStatus.ENABLED.value())
                 .orderByAsc(BlogTag::getSortNo)
-                .orderByDesc(BlogTag::getId));
+                .orderByDesc(BlogTag::getId))
+                .stream()
+                .map(this::tagResponse)
+                .toList();
     }
 
     public PageResult<BlogPostResponse> publicPosts(long pageNo, long pageSize, Long categoryId, Long tagId,
@@ -84,90 +94,100 @@ public class BlogService {
         return postResponse(post);
     }
 
-    public PageResult<BlogCategory> adminCategories(long pageNo, long pageSize, Integer status) {
+    public PageResult<BlogCategoryResponse> adminCategories(long pageNo, long pageSize, Integer status) {
         var page = new Page<BlogCategory>(pageNo, pageSize);
         var wrapper = new LambdaQueryWrapper<BlogCategory>()
                 .eq(status != null, BlogCategory::getStatus, status)
                 .orderByAsc(BlogCategory::getSortNo)
                 .orderByDesc(BlogCategory::getId);
         var result = categoryMapper.selectPage(page, wrapper);
-        return new PageResult<>(result.getRecords(), result.getTotal(), result.getCurrent(), result.getSize());
+        return new PageResult<>(result.getRecords().stream().map(this::categoryResponse).toList(),
+                result.getTotal(), result.getCurrent(), result.getSize());
     }
 
     @Transactional
-    public BlogCategory createCategory(BlogCategory category, Long adminId, String ip) {
+    public BlogCategoryResponse createCategory(BlogCategoryRequest request, Long adminId, String ip) {
         var now = DateTimeUtils.now();
+        var category = new BlogCategory();
+        applyCategoryRequest(category, request);
         category.setId(null);
         category.setStatus(defaultStatus(category.getStatus()));
         category.setCreatedAt(now);
         category.setUpdatedAt(now);
         categoryMapper.insert(category);
         log(adminId, "CREATE_BLOG_CATEGORY", "blog_category", category.getId(), category.getCategoryName(), ip);
-        return category;
+        return categoryResponse(category);
     }
 
     @Transactional
-    public BlogCategory updateCategory(Long id, BlogCategory request, Long adminId, String ip) {
+    public BlogCategoryResponse updateCategory(Long id, BlogCategoryRequest request, Long adminId, String ip) {
         requireCategory(id);
-        request.setId(id);
-        request.setUpdatedAt(DateTimeUtils.now());
-        categoryMapper.updateById(request);
-        log(adminId, "UPDATE_BLOG_CATEGORY", "blog_category", id, request.getCategoryName(), ip);
-        return requireCategory(id);
+        var category = new BlogCategory();
+        applyCategoryRequest(category, request);
+        category.setId(id);
+        category.setUpdatedAt(DateTimeUtils.now());
+        categoryMapper.updateById(category);
+        log(adminId, "UPDATE_BLOG_CATEGORY", "blog_category", id, category.getCategoryName(), ip);
+        return categoryResponse(requireCategory(id));
     }
 
     @Transactional
-    public BlogCategory setCategoryStatus(Long id, Integer status, Long adminId, String ip) {
+    public BlogCategoryResponse setCategoryStatus(Long id, Integer status, Long adminId, String ip) {
         requireCategory(id);
         categoryMapper.update(null, new LambdaUpdateWrapper<BlogCategory>()
                 .eq(BlogCategory::getId, id)
                 .set(BlogCategory::getStatus, status)
                 .set(BlogCategory::getUpdatedAt, DateTimeUtils.now()));
         log(adminId, statusAction("BLOG_CATEGORY", status), "blog_category", id, "status=" + status, ip);
-        return requireCategory(id);
+        return categoryResponse(requireCategory(id));
     }
 
-    public PageResult<BlogTag> adminTags(long pageNo, long pageSize, Integer status) {
+    public PageResult<BlogTagResponse> adminTags(long pageNo, long pageSize, Integer status) {
         var page = new Page<BlogTag>(pageNo, pageSize);
         var wrapper = new LambdaQueryWrapper<BlogTag>()
                 .eq(status != null, BlogTag::getStatus, status)
                 .orderByAsc(BlogTag::getSortNo)
                 .orderByDesc(BlogTag::getId);
         var result = tagMapper.selectPage(page, wrapper);
-        return new PageResult<>(result.getRecords(), result.getTotal(), result.getCurrent(), result.getSize());
+        return new PageResult<>(result.getRecords().stream().map(this::tagResponse).toList(),
+                result.getTotal(), result.getCurrent(), result.getSize());
     }
 
     @Transactional
-    public BlogTag createTag(BlogTag tag, Long adminId, String ip) {
+    public BlogTagResponse createTag(BlogTagRequest request, Long adminId, String ip) {
         var now = DateTimeUtils.now();
+        var tag = new BlogTag();
+        applyTagRequest(tag, request);
         tag.setId(null);
         tag.setStatus(defaultStatus(tag.getStatus()));
         tag.setCreatedAt(now);
         tag.setUpdatedAt(now);
         tagMapper.insert(tag);
         log(adminId, "CREATE_BLOG_TAG", "blog_tag", tag.getId(), tag.getTagName(), ip);
-        return tag;
+        return tagResponse(tag);
     }
 
     @Transactional
-    public BlogTag updateTag(Long id, BlogTag request, Long adminId, String ip) {
+    public BlogTagResponse updateTag(Long id, BlogTagRequest request, Long adminId, String ip) {
         requireTag(id);
-        request.setId(id);
-        request.setUpdatedAt(DateTimeUtils.now());
-        tagMapper.updateById(request);
-        log(adminId, "UPDATE_BLOG_TAG", "blog_tag", id, request.getTagName(), ip);
-        return requireTag(id);
+        var tag = new BlogTag();
+        applyTagRequest(tag, request);
+        tag.setId(id);
+        tag.setUpdatedAt(DateTimeUtils.now());
+        tagMapper.updateById(tag);
+        log(adminId, "UPDATE_BLOG_TAG", "blog_tag", id, tag.getTagName(), ip);
+        return tagResponse(requireTag(id));
     }
 
     @Transactional
-    public BlogTag setTagStatus(Long id, Integer status, Long adminId, String ip) {
+    public BlogTagResponse setTagStatus(Long id, Integer status, Long adminId, String ip) {
         requireTag(id);
         tagMapper.update(null, new LambdaUpdateWrapper<BlogTag>()
                 .eq(BlogTag::getId, id)
                 .set(BlogTag::getStatus, status)
                 .set(BlogTag::getUpdatedAt, DateTimeUtils.now()));
         log(adminId, statusAction("BLOG_TAG", status), "blog_tag", id, "status=" + status, ip);
-        return requireTag(id);
+        return tagResponse(requireTag(id));
     }
 
     public PageResult<BlogPostResponse> adminPosts(long pageNo, long pageSize, Long categoryId, Long tagId,
@@ -339,6 +359,40 @@ public class BlogService {
                 .stream()
                 .map(BlogPostTag::getTagId)
                 .toList();
+    }
+
+    private void applyCategoryRequest(BlogCategory category, BlogCategoryRequest request) {
+        category.setCategoryName(request.categoryName());
+        category.setSortNo(request.sortNo());
+        category.setStatus(request.status());
+    }
+
+    private BlogCategoryResponse categoryResponse(BlogCategory category) {
+        return new BlogCategoryResponse(
+                category.getId(),
+                category.getCategoryName(),
+                category.getSortNo(),
+                category.getStatus(),
+                category.getCreatedAt(),
+                category.getUpdatedAt()
+        );
+    }
+
+    private void applyTagRequest(BlogTag tag, BlogTagRequest request) {
+        tag.setTagName(request.tagName());
+        tag.setSortNo(request.sortNo());
+        tag.setStatus(request.status());
+    }
+
+    private BlogTagResponse tagResponse(BlogTag tag) {
+        return new BlogTagResponse(
+                tag.getId(),
+                tag.getTagName(),
+                tag.getSortNo(),
+                tag.getStatus(),
+                tag.getCreatedAt(),
+                tag.getUpdatedAt()
+        );
     }
 
     private BlogCategory requireCategory(Long id) {

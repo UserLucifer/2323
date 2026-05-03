@@ -3,16 +3,19 @@ package com.compute.rental.modules.blog.controller;
 import com.compute.rental.common.api.ApiResponse;
 import com.compute.rental.common.enums.CommonStatus;
 import com.compute.rental.common.page.PageResult;
+import com.compute.rental.modules.blog.dto.BlogCategoryRequest;
+import com.compute.rental.modules.blog.dto.BlogCategoryResponse;
 import com.compute.rental.modules.blog.dto.BlogPostRequest;
 import com.compute.rental.modules.blog.dto.BlogPostResponse;
-import com.compute.rental.modules.blog.entity.BlogCategory;
-import com.compute.rental.modules.blog.entity.BlogTag;
+import com.compute.rental.modules.blog.dto.BlogTagRequest;
+import com.compute.rental.modules.blog.dto.BlogTagResponse;
 import com.compute.rental.modules.blog.service.BlogService;
 import com.compute.rental.modules.system.service.AdminLogService;
 import com.compute.rental.security.CurrentUser;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.validation.Valid;
 import java.time.LocalDateTime;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -39,7 +42,7 @@ public class AdminBlogController {
 
     @Operation(summary = "Admin blog categories")
     @GetMapping("/categories")
-    public ApiResponse<PageResult<BlogCategory>> categories(
+    public ApiResponse<PageResult<BlogCategoryResponse>> categories(
             @RequestParam(defaultValue = "1") long pageNo,
             @RequestParam(defaultValue = "10") long pageSize,
             @RequestParam(required = false) Integer status
@@ -49,16 +52,19 @@ public class AdminBlogController {
 
     @Operation(summary = "Create blog category")
     @PostMapping("/categories")
-    public ApiResponse<BlogCategory> createCategory(@RequestBody BlogCategory request, HttpServletRequest httpRequest) {
+    public ApiResponse<BlogCategoryResponse> createCategory(
+            @Valid @RequestBody BlogCategoryRequest request,
+            HttpServletRequest httpRequest
+    ) {
         var admin = CurrentUser.requiredAdmin();
         return ApiResponse.success(blogService.createCategory(request, admin.id(), adminLogService.clientIp(httpRequest)));
     }
 
     @Operation(summary = "Update blog category")
     @PutMapping("/categories/{id}")
-    public ApiResponse<BlogCategory> updateCategory(
+    public ApiResponse<BlogCategoryResponse> updateCategory(
             @PathVariable Long id,
-            @RequestBody BlogCategory request,
+            @Valid @RequestBody BlogCategoryRequest request,
             HttpServletRequest httpRequest
     ) {
         var admin = CurrentUser.requiredAdmin();
@@ -67,7 +73,7 @@ public class AdminBlogController {
 
     @Operation(summary = "Enable blog category")
     @PostMapping("/categories/{id}/enable")
-    public ApiResponse<BlogCategory> enableCategory(@PathVariable Long id, HttpServletRequest httpRequest) {
+    public ApiResponse<BlogCategoryResponse> enableCategory(@PathVariable Long id, HttpServletRequest httpRequest) {
         var admin = CurrentUser.requiredAdmin();
         return ApiResponse.success(blogService.setCategoryStatus(id, CommonStatus.ENABLED.value(), admin.id(),
                 adminLogService.clientIp(httpRequest)));
@@ -75,7 +81,7 @@ public class AdminBlogController {
 
     @Operation(summary = "Disable blog category")
     @PostMapping("/categories/{id}/disable")
-    public ApiResponse<BlogCategory> disableCategory(@PathVariable Long id, HttpServletRequest httpRequest) {
+    public ApiResponse<BlogCategoryResponse> disableCategory(@PathVariable Long id, HttpServletRequest httpRequest) {
         var admin = CurrentUser.requiredAdmin();
         return ApiResponse.success(blogService.setCategoryStatus(id, CommonStatus.DISABLED.value(), admin.id(),
                 adminLogService.clientIp(httpRequest)));
@@ -83,7 +89,7 @@ public class AdminBlogController {
 
     @Operation(summary = "Admin blog tags")
     @GetMapping("/tags")
-    public ApiResponse<PageResult<BlogTag>> tags(
+    public ApiResponse<PageResult<BlogTagResponse>> tags(
             @RequestParam(defaultValue = "1") long pageNo,
             @RequestParam(defaultValue = "10") long pageSize,
             @RequestParam(required = false) Integer status
@@ -93,16 +99,19 @@ public class AdminBlogController {
 
     @Operation(summary = "Create blog tag")
     @PostMapping("/tags")
-    public ApiResponse<BlogTag> createTag(@RequestBody BlogTag request, HttpServletRequest httpRequest) {
+    public ApiResponse<BlogTagResponse> createTag(
+            @Valid @RequestBody BlogTagRequest request,
+            HttpServletRequest httpRequest
+    ) {
         var admin = CurrentUser.requiredAdmin();
         return ApiResponse.success(blogService.createTag(request, admin.id(), adminLogService.clientIp(httpRequest)));
     }
 
     @Operation(summary = "Update blog tag")
     @PutMapping("/tags/{id}")
-    public ApiResponse<BlogTag> updateTag(
+    public ApiResponse<BlogTagResponse> updateTag(
             @PathVariable Long id,
-            @RequestBody BlogTag request,
+            @Valid @RequestBody BlogTagRequest request,
             HttpServletRequest httpRequest
     ) {
         var admin = CurrentUser.requiredAdmin();
@@ -111,7 +120,7 @@ public class AdminBlogController {
 
     @Operation(summary = "Enable blog tag")
     @PostMapping("/tags/{id}/enable")
-    public ApiResponse<BlogTag> enableTag(@PathVariable Long id, HttpServletRequest httpRequest) {
+    public ApiResponse<BlogTagResponse> enableTag(@PathVariable Long id, HttpServletRequest httpRequest) {
         var admin = CurrentUser.requiredAdmin();
         return ApiResponse.success(blogService.setTagStatus(id, CommonStatus.ENABLED.value(), admin.id(),
                 adminLogService.clientIp(httpRequest)));
@@ -119,7 +128,7 @@ public class AdminBlogController {
 
     @Operation(summary = "Disable blog tag")
     @PostMapping("/tags/{id}/disable")
-    public ApiResponse<BlogTag> disableTag(@PathVariable Long id, HttpServletRequest httpRequest) {
+    public ApiResponse<BlogTagResponse> disableTag(@PathVariable Long id, HttpServletRequest httpRequest) {
         var admin = CurrentUser.requiredAdmin();
         return ApiResponse.success(blogService.setTagStatus(id, CommonStatus.DISABLED.value(), admin.id(),
                 adminLogService.clientIp(httpRequest)));

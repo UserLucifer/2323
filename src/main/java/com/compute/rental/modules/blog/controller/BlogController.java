@@ -2,9 +2,9 @@ package com.compute.rental.modules.blog.controller;
 
 import com.compute.rental.common.api.ApiResponse;
 import com.compute.rental.common.page.PageResult;
+import com.compute.rental.modules.blog.dto.BlogCategoryResponse;
 import com.compute.rental.modules.blog.dto.BlogPostResponse;
-import com.compute.rental.modules.blog.entity.BlogCategory;
-import com.compute.rental.modules.blog.entity.BlogTag;
+import com.compute.rental.modules.blog.dto.BlogTagResponse;
 import com.compute.rental.modules.blog.service.BlogService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -30,13 +30,13 @@ public class BlogController {
 
     @Operation(summary = "Public blog categories")
     @GetMapping("/categories")
-    public ApiResponse<List<BlogCategory>> categories() {
+    public ApiResponse<List<BlogCategoryResponse>> categories() {
         return ApiResponse.success(blogService.publicCategories());
     }
 
     @Operation(summary = "Public blog tags")
     @GetMapping("/tags")
-    public ApiResponse<List<BlogTag>> tags() {
+    public ApiResponse<List<BlogTagResponse>> tags() {
         return ApiResponse.success(blogService.publicTags());
     }
 
