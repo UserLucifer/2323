@@ -11,6 +11,9 @@ import com.compute.rental.common.exception.BusinessException;
 import com.compute.rental.common.page.PageResult;
 import com.compute.rental.common.util.DateTimeUtils;
 import com.compute.rental.common.util.MoneyUtils;
+import com.compute.rental.common.util.RedisKeys;
+import com.compute.rental.common.util.RedisLockClient;
+import com.compute.rental.common.util.RedisLockClient.RedisLock;
 import com.compute.rental.modules.system.service.SysConfigDefaults;
 import com.compute.rental.modules.system.service.SysConfigService;
 import com.compute.rental.modules.user.entity.AppUser;
@@ -27,13 +30,17 @@ import com.compute.rental.modules.withdraw.dto.CreateWithdrawOrderRequest;
 import com.compute.rental.modules.withdraw.dto.WithdrawOrderQueryRequest;
 import com.compute.rental.modules.withdraw.dto.WithdrawOrderResponse;
 import java.math.BigDecimal;
+import java.time.Duration;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
+import java.util.function.Supplier;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.util.StringUtils;
 
 @Service
@@ -44,6 +51,7 @@ public class WithdrawService {
     private static final String FREEZE_ACTION = "FREEZE";
     private static final String UNFREEZE_ACTION = "UNFREEZE";
     private static final String PAID_ACTION = "PAID";
+    private static final Duration WITHDRAW_OPERATION_LOCK_TTL = Duration.ofMinutes(1);
     private static final List<String> DAILY_LIMIT_STATUSES = List.of(
             WithdrawOrderStatus.PENDING_REVIEW.name(),
             WithdrawOrderStatus.APPROVED.name(),
@@ -56,6 +64,7 @@ public class WithdrawService {
     private final SysConfigService sysConfigService;
     private final WalletService walletService;
     private final WithdrawAddressValidator addressValidator;
+    private final RedisLockClient redisLockClient;
 
     public WithdrawService(
             WithdrawOrderMapper withdrawOrderMapper,
@@ -63,7 +72,8 @@ public class WithdrawService {
             AppUserMapper appUserMapper,
             SysConfigService sysConfigService,
             WalletService walletService,
-            WithdrawAddressValidator addressValidator
+            WithdrawAddressValidator addressValidator,
+            RedisLockClient redisLockClient
     ) {
         this.withdrawOrderMapper = withdrawOrderMapper;
         this.userWalletMapper = userWalletMapper;
@@ -71,10 +81,15 @@ public class WithdrawService {
         this.sysConfigService = sysConfigService;
         this.walletService = walletService;
         this.addressValidator = addressValidator;
+        this.redisLockClient = redisLockClient;
     }
 
     @Transactional
     public WithdrawOrderResponse createOrder(Long userId, CreateWithdrawOrderRequest request) {
+        return withWithdrawLock(RedisKeys.withdrawCreateLock(userId), () -> doCreateOrder(userId, request));
+    }
+
+    private WithdrawOrderResponse doCreateOrder(Long userId, CreateWithdrawOrderRequest request) {
         var amount = requirePositiveAmount(request.applyAmount());
         var minAmount = sysConfigService.getBigDecimal(SysConfigDefaults.WITHDRAW_MIN_AMOUNT, new BigDecimal("10"));
         if (amount.compareTo(minAmount) < 0) {
@@ -147,6 +162,13 @@ public class WithdrawService {
 
     @Transactional
     public void cancelUserOrder(Long userId, String withdrawNo) {
+        withWithdrawLock(RedisKeys.withdrawOperationLock(withdrawNo, "cancel"), () -> {
+            doCancelUserOrder(userId, withdrawNo);
+            return null;
+        });
+    }
+
+    private void doCancelUserOrder(Long userId, String withdrawNo) {
         var order = requireUserOrder(userId, withdrawNo);
         if (!WithdrawOrderStatus.PENDING_REVIEW.name().equals(order.getStatus())) {
             throw new BusinessException(ErrorCode.BUSINESS_ERROR, "仅待处理提现订单可取消");
@@ -179,6 +201,11 @@ public class WithdrawService {
 
     @Transactional
     public WithdrawOrderResponse approve(String withdrawNo, Long reviewedBy, AdminApproveWithdrawRequest request) {
+        return withWithdrawLock(RedisKeys.withdrawOperationLock(withdrawNo, "approve"),
+                () -> doApprove(withdrawNo, reviewedBy, request));
+    }
+
+    private WithdrawOrderResponse doApprove(String withdrawNo, Long reviewedBy, AdminApproveWithdrawRequest request) {
         var order = requireOrder(withdrawNo);
         if (!WithdrawOrderStatus.PENDING_REVIEW.name().equals(order.getStatus())) {
             throw new BusinessException(ErrorCode.BUSINESS_ERROR, "仅待处理提现订单可审核通过");
@@ -189,6 +216,11 @@ public class WithdrawService {
 
     @Transactional
     public WithdrawOrderResponse reject(String withdrawNo, Long reviewedBy, AdminRejectWithdrawRequest request) {
+        return withWithdrawLock(RedisKeys.withdrawOperationLock(withdrawNo, "reject"),
+                () -> doReject(withdrawNo, reviewedBy, request));
+    }
+
+    private WithdrawOrderResponse doReject(String withdrawNo, Long reviewedBy, AdminRejectWithdrawRequest request) {
         var order = requireOrder(withdrawNo);
         if (!WithdrawOrderStatus.PENDING_REVIEW.name().equals(order.getStatus())
                 && !WithdrawOrderStatus.APPROVED.name().equals(order.getStatus())) {
@@ -203,6 +235,10 @@ public class WithdrawService {
 
     @Transactional
     public WithdrawOrderResponse paid(String withdrawNo, AdminPaidWithdrawRequest request) {
+        return withWithdrawLock(RedisKeys.withdrawOperationLock(withdrawNo, "paid"), () -> doPaid(withdrawNo, request));
+    }
+
+    private WithdrawOrderResponse doPaid(String withdrawNo, AdminPaidWithdrawRequest request) {
         var order = requireOrder(withdrawNo);
         if (!WithdrawOrderStatus.APPROVED.name().equals(order.getStatus())) {
             throw new BusinessException(ErrorCode.BUSINESS_ERROR, "仅已审核提现订单可标记打款");
@@ -276,6 +312,34 @@ public class WithdrawService {
                 .eq(WithdrawOrder::getId, orderId)
                 .set(WithdrawOrder::getUnfreezeTxNo, txNo)
                 .set(WithdrawOrder::getUpdatedAt, DateTimeUtils.now()));
+    }
+
+    private <T> T withWithdrawLock(String lockKey, Supplier<T> action) {
+        var lock = redisLockClient.tryLock(lockKey, WITHDRAW_OPERATION_LOCK_TTL);
+        if (lock.isEmpty()) {
+            throw new BusinessException(ErrorCode.IDEMPOTENCY_CONFLICT, "鎻愮幇璁㈠崟姝ｅ湪澶勭悊锛岃绋嶅悗閲嶈瘯");
+        }
+        var releaseRegistered = registerUnlockAfterTransaction(lock.get());
+        try {
+            return action.get();
+        } finally {
+            if (!releaseRegistered) {
+                redisLockClient.unlock(lock.get());
+            }
+        }
+    }
+
+    private boolean registerUnlockAfterTransaction(RedisLock lock) {
+        if (!TransactionSynchronizationManager.isSynchronizationActive()) {
+            return false;
+        }
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCompletion(int status) {
+                redisLockClient.unlock(lock);
+            }
+        });
+        return true;
     }
 
     private UserWallet requireWallet(Long userId) {

@@ -1,6 +1,5 @@
 package com.compute.rental.modules.system.service;
 
-import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
@@ -9,6 +8,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.baomidou.mybatisplus.core.metadata.TableInfoHelper;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.compute.rental.common.enums.ApiTokenStatus;
 import com.compute.rental.common.enums.RentalOrderStatus;
 import com.compute.rental.modules.commission.mapper.CommissionRecordMapper;
@@ -21,8 +21,10 @@ import com.compute.rental.modules.order.mapper.RentalProfitRecordMapper;
 import com.compute.rental.modules.order.mapper.RentalSettlementOrderMapper;
 import com.compute.rental.modules.system.mapper.SysAdminLogMapper;
 import com.compute.rental.modules.user.entity.AppUser;
+import com.compute.rental.modules.user.entity.UserTeamRelation;
 import com.compute.rental.modules.user.mapper.AppUserMapper;
 import com.compute.rental.modules.user.mapper.UserTeamRelationMapper;
+import com.compute.rental.modules.wallet.entity.WalletTransaction;
 import com.compute.rental.modules.wallet.mapper.UserWalletMapper;
 import com.compute.rental.modules.wallet.mapper.WalletTransactionMapper;
 import java.util.List;
@@ -98,7 +100,7 @@ class AdminBusinessQueryServiceTest {
 
         var result = service.disableUser(10L, 1L, "127.0.0.1");
 
-        assertEquals(10L, result.get("id"));
+        assertEquals(10L, result.id());
         verify(rentalOrderMapper).update(isNull(), any());
         verify(apiCredentialMapper).update(isNull(), any());
         verify(adminLogService).log(eq(1L), eq("BAN_USER"), eq("app_user"), eq(10L),
@@ -117,8 +119,7 @@ class AdminBusinessQueryServiceTest {
 
         var result = service.getApiCredential("CR001");
 
-        assertEquals("tok***001", result.get("token_masked"));
-        assertFalse(result.containsKey("token_ciphertext"));
+        assertEquals("tok***001", result.tokenMasked());
     }
 
     @Test
@@ -137,8 +138,54 @@ class AdminBusinessQueryServiceTest {
 
         var result = service.getRentalOrder("RO001");
 
-        assertEquals("RO001", result.get("orderNo"));
-        assertEquals("Alice", result.get("userName"));
-        assertFalse(result.containsKey("order"));
+        assertEquals("RO001", result.orderNo());
+        assertEquals("Alice", result.userName());
+    }
+
+    @Test
+    void walletTransactionsReturnAdminDtoWithUserNameAndIdempotencyKey() {
+        var transaction = new WalletTransaction();
+        transaction.setId(30L);
+        transaction.setTxNo("TX001");
+        transaction.setIdempotencyKey("idem-001");
+        transaction.setUserId(10L);
+
+        var page = new Page<WalletTransaction>(1, 10);
+        page.setRecords(List.of(transaction));
+        page.setTotal(1);
+
+        var user = new AppUser();
+        user.setId(10L);
+        user.setUserName("Alice");
+
+        when(walletTransactionMapper.selectPage(any(), any())).thenReturn(page);
+        when(appUserMapper.selectBatchIds(any())).thenReturn(List.of(user));
+
+        var result = service.pageWalletTransactions(1, 10, null, null, null, null, null, null);
+        var response = result.records().get(0);
+
+        assertEquals(30L, response.id());
+        assertEquals("idem-001", response.idempotencyKey());
+        assertEquals("Alice", response.userName());
+    }
+
+    @Test
+    void userTeamReturnsDtoRelations() {
+        var user = new AppUser();
+        user.setId(10L);
+        when(appUserMapper.selectById(10L)).thenReturn(user);
+
+        var relation = new UserTeamRelation();
+        relation.setId(99L);
+        relation.setAncestorUserId(10L);
+        relation.setDescendantUserId(11L);
+        relation.setLevelDepth(1);
+        when(teamRelationMapper.selectList(any())).thenReturn(List.of(relation));
+
+        var result = service.userTeam(10L);
+
+        assertEquals(1, result.totalTeamCount());
+        assertEquals(99L, result.relations().get(0).id());
+        assertEquals(11L, result.relations().get(0).descendantUserId());
     }
 }

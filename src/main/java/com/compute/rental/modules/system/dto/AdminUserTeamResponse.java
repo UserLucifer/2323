@@ -1,6 +1,5 @@
 package com.compute.rental.modules.system.dto;
 
-import com.compute.rental.modules.user.entity.UserTeamRelation;
 import io.swagger.v3.oas.annotations.media.Schema;
 import java.util.List;
 
@@ -18,6 +17,6 @@ public record AdminUserTeamResponse(
         @Schema(description = "Deeper team count")
         long deeperTeamCount,
         @Schema(description = "Team relations")
-        List<UserTeamRelation> relations
+        List<AdminTeamRelationResponse> relations
 ) {
 }

@@ -22,10 +22,18 @@ import com.compute.rental.modules.order.mapper.RentalOrderMapper;
 import com.compute.rental.modules.order.mapper.RentalProfitRecordMapper;
 import com.compute.rental.modules.order.mapper.RentalSettlementOrderMapper;
 import com.compute.rental.modules.system.dto.AdminApiCredentialResponse;
+import com.compute.rental.modules.system.dto.AdminApiDeployOrderResponse;
+import com.compute.rental.modules.system.dto.AdminCommissionRecordResponse;
+import com.compute.rental.modules.system.dto.AdminLogResponse;
+import com.compute.rental.modules.system.dto.AdminProfitRecordResponse;
 import com.compute.rental.modules.system.dto.AdminRentalOrderDetailResponse;
+import com.compute.rental.modules.system.dto.AdminRentalOrderResponse;
+import com.compute.rental.modules.system.dto.AdminSettlementOrderResponse;
+import com.compute.rental.modules.system.dto.AdminTeamRelationResponse;
 import com.compute.rental.modules.system.dto.AdminUserResponse;
 import com.compute.rental.modules.system.dto.AdminUserTeamResponse;
 import com.compute.rental.modules.system.dto.AdminWalletResponse;
+import com.compute.rental.modules.system.dto.AdminWalletTransactionResponse;
 import com.compute.rental.modules.system.entity.SysAdminLog;
 import com.compute.rental.modules.system.mapper.SysAdminLogMapper;
 import com.compute.rental.modules.user.entity.AppUser;
@@ -180,7 +188,7 @@ public class AdminBusinessQueryService {
         return walletResponse(wallet, userName(wallet.getUserId()));
     }
 
-    public PageResult<WalletTransaction> pageWalletTransactions(
+    public PageResult<AdminWalletTransactionResponse> pageWalletTransactions(
             long pageNo,
             long pageSize,
             Long userId,
@@ -211,11 +219,12 @@ public class AdminBusinessQueryService {
                 .orderByDesc(WalletTransaction::getId);
         var result = walletTransactionMapper.selectPage(page, wrapper);
         var userNames = userNameMap(result.getRecords().stream().map(WalletTransaction::getUserId).toList());
-        result.getRecords().forEach(transaction -> transaction.setUserName(userNames.get(transaction.getUserId())));
-        return new PageResult<>(result.getRecords(), result.getTotal(), result.getCurrent(), result.getSize());
+        return new PageResult<>(result.getRecords().stream()
+                .map(transaction -> walletTransactionResponse(transaction, userNames.get(transaction.getUserId())))
+                .toList(), result.getTotal(), result.getCurrent(), result.getSize());
     }
 
-    public PageResult<RentalOrder> pageRentalOrders(
+    public PageResult<AdminRentalOrderResponse> pageRentalOrders(
             long pageNo,
             long pageSize,
             Long userId,
@@ -238,8 +247,9 @@ public class AdminBusinessQueryService {
                 .orderByDesc(RentalOrder::getId);
         var result = rentalOrderMapper.selectPage(page, wrapper);
         var userNames = userNameMap(result.getRecords().stream().map(RentalOrder::getUserId).toList());
-        result.getRecords().forEach(order -> order.setUserName(userNames.get(order.getUserId())));
-        return new PageResult<>(result.getRecords(), result.getTotal(), result.getCurrent(), result.getSize());
+        return new PageResult<>(result.getRecords().stream()
+                .map(order -> rentalOrderResponse(order, userNames.get(order.getUserId())))
+                .toList(), result.getTotal(), result.getCurrent(), result.getSize());
     }
 
     public AdminRentalOrderDetailResponse getRentalOrder(String orderNo) {
@@ -292,7 +302,7 @@ public class AdminBusinessQueryService {
         return credentialResponse(credential);
     }
 
-    public PageResult<ApiDeployOrder> pageApiDeployOrders(
+    public PageResult<AdminApiDeployOrderResponse> pageApiDeployOrders(
             long pageNo,
             long pageSize,
             Long userId,
@@ -311,22 +321,22 @@ public class AdminBusinessQueryService {
                 .orderByDesc(ApiDeployOrder::getId);
         var result = apiDeployOrderMapper.selectPage(page, wrapper);
         var userNames = userNameMap(result.getRecords().stream().map(ApiDeployOrder::getUserId).toList());
-        result.getRecords().forEach(order -> order.setUserName(userNames.get(order.getUserId())));
-        return new PageResult<>(result.getRecords(), result.getTotal(), result.getCurrent(), result.getSize());
+        return new PageResult<>(result.getRecords().stream()
+                .map(order -> apiDeployOrderResponse(order, userNames.get(order.getUserId())))
+                .toList(), result.getTotal(), result.getCurrent(), result.getSize());
     }
 
-    public ApiDeployOrder getApiDeployOrder(String deployNo) {
+    public AdminApiDeployOrderResponse getApiDeployOrder(String deployNo) {
         var order = apiDeployOrderMapper.selectOne(new LambdaQueryWrapper<ApiDeployOrder>()
                 .eq(ApiDeployOrder::getDeployNo, deployNo)
                 .last("LIMIT 1"));
         if (order == null) {
             throw new BusinessException(ErrorCode.NOT_FOUND, "API 部署订单不存在");
         }
-        fillUserName(order);
-        return order;
+        return apiDeployOrderResponse(order, userName(order.getUserId()));
     }
 
-    public PageResult<RentalProfitRecord> pageProfitRecords(
+    public PageResult<AdminProfitRecordResponse> pageProfitRecords(
             long pageNo,
             long pageSize,
             Long userId,
@@ -351,22 +361,22 @@ public class AdminBusinessQueryService {
                 .orderByDesc(RentalProfitRecord::getId);
         var result = profitRecordMapper.selectPage(page, wrapper);
         var userNames = userNameMap(result.getRecords().stream().map(RentalProfitRecord::getUserId).toList());
-        result.getRecords().forEach(record -> record.setUserName(userNames.get(record.getUserId())));
-        return new PageResult<>(result.getRecords(), result.getTotal(), result.getCurrent(), result.getSize());
+        return new PageResult<>(result.getRecords().stream()
+                .map(record -> profitRecordResponse(record, userNames.get(record.getUserId())))
+                .toList(), result.getTotal(), result.getCurrent(), result.getSize());
     }
 
-    public RentalProfitRecord getProfitRecord(String profitNo) {
+    public AdminProfitRecordResponse getProfitRecord(String profitNo) {
         var record = profitRecordMapper.selectOne(new LambdaQueryWrapper<RentalProfitRecord>()
                 .eq(RentalProfitRecord::getProfitNo, profitNo)
                 .last("LIMIT 1"));
         if (record == null) {
             throw new BusinessException(ErrorCode.NOT_FOUND, "收益记录不存在");
         }
-        fillUserName(record);
-        return record;
+        return profitRecordResponse(record, userName(record.getUserId()));
     }
 
-    public PageResult<RentalSettlementOrder> pageSettlementOrders(
+    public PageResult<AdminSettlementOrderResponse> pageSettlementOrders(
             long pageNo,
             long pageSize,
             Long userId,
@@ -391,22 +401,22 @@ public class AdminBusinessQueryService {
                 .orderByDesc(RentalSettlementOrder::getId);
         var result = settlementOrderMapper.selectPage(page, wrapper);
         var userNames = userNameMap(result.getRecords().stream().map(RentalSettlementOrder::getUserId).toList());
-        result.getRecords().forEach(order -> order.setUserName(userNames.get(order.getUserId())));
-        return new PageResult<>(result.getRecords(), result.getTotal(), result.getCurrent(), result.getSize());
+        return new PageResult<>(result.getRecords().stream()
+                .map(order -> settlementOrderResponse(order, userNames.get(order.getUserId())))
+                .toList(), result.getTotal(), result.getCurrent(), result.getSize());
     }
 
-    public RentalSettlementOrder getSettlementOrder(String settlementNo) {
+    public AdminSettlementOrderResponse getSettlementOrder(String settlementNo) {
         var order = settlementOrderMapper.selectOne(new LambdaQueryWrapper<RentalSettlementOrder>()
                 .eq(RentalSettlementOrder::getSettlementNo, settlementNo)
                 .last("LIMIT 1"));
         if (order == null) {
             throw new BusinessException(ErrorCode.NOT_FOUND, "结算订单不存在");
         }
-        fillUserName(order);
-        return order;
+        return settlementOrderResponse(order, userName(order.getUserId()));
     }
 
-    public PageResult<CommissionRecord> pageCommissionRecords(
+    public PageResult<AdminCommissionRecordResponse> pageCommissionRecords(
             long pageNo,
             long pageSize,
             Long userId,
@@ -431,22 +441,22 @@ public class AdminBusinessQueryService {
                 .orderByDesc(CommissionRecord::getId);
         var result = commissionRecordMapper.selectPage(page, wrapper);
         var userNames = userNameMap(result.getRecords().stream().map(CommissionRecord::getSourceUserId).toList());
-        result.getRecords().forEach(record -> record.setUserName(userNames.get(record.getSourceUserId())));
-        return new PageResult<>(result.getRecords(), result.getTotal(), result.getCurrent(), result.getSize());
+        return new PageResult<>(result.getRecords().stream()
+                .map(record -> commissionRecordResponse(record, userNames.get(record.getSourceUserId())))
+                .toList(), result.getTotal(), result.getCurrent(), result.getSize());
     }
 
-    public CommissionRecord getCommissionRecord(String commissionNo) {
+    public AdminCommissionRecordResponse getCommissionRecord(String commissionNo) {
         var record = commissionRecordMapper.selectOne(new LambdaQueryWrapper<CommissionRecord>()
                 .eq(CommissionRecord::getCommissionNo, commissionNo)
                 .last("LIMIT 1"));
         if (record == null) {
             throw new BusinessException(ErrorCode.NOT_FOUND, "佣金记录不存在");
         }
-        fillUserName(record);
-        return record;
+        return commissionRecordResponse(record, userName(record.getSourceUserId()));
     }
 
-    public PageResult<UserTeamRelation> pageTeamRelations(
+    public PageResult<AdminTeamRelationResponse> pageTeamRelations(
             long pageNo,
             long pageSize,
             Long ancestorUserId,
@@ -461,7 +471,8 @@ public class AdminBusinessQueryService {
                 .orderByAsc(UserTeamRelation::getLevelDepth)
                 .orderByDesc(UserTeamRelation::getId);
         var result = teamRelationMapper.selectPage(page, wrapper);
-        return new PageResult<>(result.getRecords(), result.getTotal(), result.getCurrent(), result.getSize());
+        return new PageResult<>(result.getRecords().stream().map(this::teamRelationResponse).toList(),
+                result.getTotal(), result.getCurrent(), result.getSize());
     }
 
     public AdminUserTeamResponse userTeam(Long userId) {
@@ -478,10 +489,10 @@ public class AdminBusinessQueryService {
                 relations.stream()
                         .filter(relation -> relation.getLevelDepth() != null && relation.getLevelDepth() > 3)
                         .count(),
-                relations);
+                relations.stream().map(this::teamRelationResponse).toList());
     }
 
-    public PageResult<SysAdminLog> pageLogs(
+    public PageResult<AdminLogResponse> pageLogs(
             long pageNo,
             long pageSize,
             Long adminId,
@@ -500,16 +511,17 @@ public class AdminBusinessQueryService {
                 .orderByDesc(SysAdminLog::getId);
         var result = adminLogMapper.selectPage(page, wrapper);
         result.getRecords().forEach(this::fillAdminLogDisplayFields);
-        return new PageResult<>(result.getRecords(), result.getTotal(), result.getCurrent(), result.getSize());
+        return new PageResult<>(result.getRecords().stream().map(this::adminLogResponse).toList(),
+                result.getTotal(), result.getCurrent(), result.getSize());
     }
 
-    public SysAdminLog getLog(Long id) {
+    public AdminLogResponse getLog(Long id) {
         var log = adminLogMapper.selectById(id);
         if (log == null) {
             throw new BusinessException(ErrorCode.NOT_FOUND, "管理员日志不存在");
         }
         fillAdminLogDisplayFields(log);
-        return log;
+        return adminLogResponse(log);
     }
 
     private void fillAdminLogDisplayFields(SysAdminLog log) {
@@ -542,6 +554,7 @@ public class AdminBusinessQueryService {
                 user.getUserId(),
                 user.getEmail(),
                 user.getUserName(),
+                user.getAvatarKey(),
                 user.getStatus(),
                 user.getEmailVerifiedAt(),
                 user.getLastLoginAt(),
@@ -566,6 +579,79 @@ public class AdminBusinessQueryService {
                 wallet.getVersionNo(),
                 wallet.getCreatedAt(),
                 wallet.getUpdatedAt());
+    }
+
+    private AdminWalletTransactionResponse walletTransactionResponse(WalletTransaction transaction, String userName) {
+        return new AdminWalletTransactionResponse(
+                transaction.getId(),
+                transaction.getTxNo(),
+                transaction.getIdempotencyKey(),
+                transaction.getUserId(),
+                userName,
+                transaction.getWalletId(),
+                transaction.getCurrency(),
+                transaction.getTxType(),
+                transaction.getAmount(),
+                transaction.getBeforeAvailableBalance(),
+                transaction.getAfterAvailableBalance(),
+                transaction.getBeforeFrozenBalance(),
+                transaction.getAfterFrozenBalance(),
+                transaction.getBizType(),
+                transaction.getBizOrderNo(),
+                transaction.getRemark(),
+                transaction.getCreatedAt());
+    }
+
+    private AdminRentalOrderResponse rentalOrderResponse(RentalOrder order, String userName) {
+        return new AdminRentalOrderResponse(
+                order.getId(),
+                order.getOrderNo(),
+                order.getUserId(),
+                userName,
+                order.getProductId(),
+                order.getAiModelId(),
+                order.getCycleRuleId(),
+                order.getProductCodeSnapshot(),
+                order.getProductNameSnapshot(),
+                order.getMachineCodeSnapshot(),
+                order.getMachineAliasSnapshot(),
+                order.getRegionNameSnapshot(),
+                order.getGpuModelSnapshot(),
+                order.getGpuMemorySnapshotGb(),
+                order.getGpuPowerTopsSnapshot(),
+                order.getGpuRentPriceSnapshot(),
+                order.getTokenOutputPerDaySnapshot(),
+                order.getAiModelNameSnapshot(),
+                order.getAiVendorNameSnapshot(),
+                order.getMonthlyTokenConsumptionSnapshot(),
+                order.getTokenUnitPriceSnapshot(),
+                order.getDeployFeeSnapshot(),
+                order.getCycleDaysSnapshot(),
+                order.getYieldMultiplierSnapshot(),
+                order.getEarlyPenaltyRateSnapshot(),
+                order.getCurrency(),
+                order.getOrderAmount(),
+                order.getPaidAmount(),
+                order.getExpectedDailyProfit(),
+                order.getExpectedTotalProfit(),
+                order.getOrderStatus(),
+                order.getProfitStatus(),
+                order.getSettlementStatus(),
+                order.getMachinePayTxNo(),
+                order.getPaidAt(),
+                order.getApiGeneratedAt(),
+                order.getDeployFeePaidAt(),
+                order.getActivatedAt(),
+                order.getAutoPauseAt(),
+                order.getPausedAt(),
+                order.getStartedAt(),
+                order.getProfitStartAt(),
+                order.getProfitEndAt(),
+                order.getExpiredAt(),
+                order.getCanceledAt(),
+                order.getFinishedAt(),
+                order.getCreatedAt(),
+                order.getUpdatedAt());
     }
 
     private AdminRentalOrderDetailResponse rentalOrderResponse(
@@ -657,28 +743,117 @@ public class AdminBusinessQueryService {
                 credential.getUpdatedAt());
     }
 
-    private void fillUserName(WalletTransaction transaction) {
-        transaction.setUserName(userName(transaction.getUserId()));
+    private AdminApiDeployOrderResponse apiDeployOrderResponse(ApiDeployOrder order, String userName) {
+        return new AdminApiDeployOrderResponse(
+                order.getId(),
+                order.getDeployNo(),
+                order.getUserId(),
+                userName,
+                order.getRentalOrderId(),
+                order.getApiCredentialId(),
+                order.getAiModelId(),
+                order.getModelNameSnapshot(),
+                order.getCurrency(),
+                order.getDeployFeeAmount(),
+                order.getStatus(),
+                order.getWalletTxNo(),
+                order.getPaidAt(),
+                order.getCanceledAt(),
+                order.getCreatedAt(),
+                order.getUpdatedAt());
     }
 
-    private void fillUserName(RentalOrder order) {
-        order.setUserName(userName(order.getUserId()));
+    private AdminProfitRecordResponse profitRecordResponse(RentalProfitRecord record, String userName) {
+        return new AdminProfitRecordResponse(
+                record.getId(),
+                record.getProfitNo(),
+                record.getUserId(),
+                userName,
+                record.getRentalOrderId(),
+                record.getProfitDate(),
+                record.getGpuDailyTokenSnapshot(),
+                record.getTokenPriceSnapshot(),
+                record.getYieldMultiplierSnapshot(),
+                record.getBaseProfitAmount(),
+                record.getFinalProfitAmount(),
+                record.getStatus(),
+                record.getWalletTxNo(),
+                record.getCommissionGenerated(),
+                record.getSettledAt(),
+                record.getRemark(),
+                record.getCreatedAt(),
+                record.getUpdatedAt());
     }
 
-    private void fillUserName(ApiDeployOrder order) {
-        order.setUserName(userName(order.getUserId()));
+    private AdminSettlementOrderResponse settlementOrderResponse(RentalSettlementOrder order, String userName) {
+        return new AdminSettlementOrderResponse(
+                order.getId(),
+                order.getSettlementNo(),
+                order.getUserId(),
+                userName,
+                order.getRentalOrderId(),
+                order.getSettlementType(),
+                order.getCurrency(),
+                order.getPrincipalAmount(),
+                order.getProfitAmount(),
+                order.getPenaltyAmount(),
+                order.getActualSettleAmount(),
+                order.getStatus(),
+                order.getReviewedBy(),
+                order.getReviewedAt(),
+                order.getSettledAt(),
+                order.getWalletTxNo(),
+                order.getRemark(),
+                order.getCreatedAt(),
+                order.getUpdatedAt());
     }
 
-    private void fillUserName(RentalProfitRecord record) {
-        record.setUserName(userName(record.getUserId()));
+    private AdminCommissionRecordResponse commissionRecordResponse(CommissionRecord record, String userName) {
+        return new AdminCommissionRecordResponse(
+                record.getId(),
+                record.getCommissionNo(),
+                record.getBenefitUserId(),
+                record.getSourceUserId(),
+                userName,
+                record.getSourceOrderId(),
+                record.getSourceProfitId(),
+                record.getLevelNo(),
+                record.getCurrency(),
+                record.getSourceProfitAmount(),
+                record.getCommissionRateSnapshot(),
+                record.getCommissionAmount(),
+                record.getStatus(),
+                record.getWalletTxNo(),
+                record.getSettledAt(),
+                record.getCreatedAt(),
+                record.getUpdatedAt());
     }
 
-    private void fillUserName(RentalSettlementOrder order) {
-        order.setUserName(userName(order.getUserId()));
+    private AdminTeamRelationResponse teamRelationResponse(UserTeamRelation relation) {
+        return new AdminTeamRelationResponse(
+                relation.getId(),
+                relation.getAncestorUserId(),
+                relation.getAncestorUserName(),
+                relation.getDescendantUserId(),
+                relation.getDescendantUserName(),
+                relation.getLevelDepth(),
+                relation.getCreatedAt());
     }
 
-    private void fillUserName(CommissionRecord record) {
-        record.setUserName(userName(record.getSourceUserId()));
+    private AdminLogResponse adminLogResponse(SysAdminLog log) {
+        return new AdminLogResponse(
+                log.getId(),
+                log.getAdminId(),
+                log.getOperatorName(),
+                log.getAction(),
+                log.getActionName(),
+                log.getTargetTable(),
+                log.getTargetId(),
+                log.getBeforeValue(),
+                log.getAfterValue(),
+                log.getRemark(),
+                log.getIp(),
+                log.getCreatedAt());
     }
 
     private String userName(Long userId) {

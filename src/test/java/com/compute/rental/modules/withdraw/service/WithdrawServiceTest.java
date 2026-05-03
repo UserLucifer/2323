@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -16,8 +17,12 @@ import com.compute.rental.common.enums.ErrorCode;
 import com.compute.rental.common.enums.WalletBusinessType;
 import com.compute.rental.common.enums.WithdrawOrderStatus;
 import com.compute.rental.common.exception.BusinessException;
+import com.compute.rental.common.util.RedisKeys;
+import com.compute.rental.common.util.RedisLockClient;
+import com.compute.rental.common.util.RedisLockClient.RedisLock;
 import com.compute.rental.modules.system.service.SysConfigDefaults;
 import com.compute.rental.modules.system.service.SysConfigService;
+import com.compute.rental.modules.user.mapper.AppUserMapper;
 import com.compute.rental.modules.wallet.entity.UserWallet;
 import com.compute.rental.modules.wallet.entity.WalletTransaction;
 import com.compute.rental.modules.wallet.entity.WithdrawOrder;
@@ -30,10 +35,12 @@ import com.compute.rental.modules.withdraw.dto.AdminRejectWithdrawRequest;
 import com.compute.rental.modules.withdraw.dto.CreateWithdrawOrderRequest;
 import java.math.BigDecimal;
 import java.util.List;
+import java.util.Optional;
 import java.util.concurrent.atomic.AtomicReference;
 import org.apache.ibatis.builder.MapperBuilderAssistant;
 import org.apache.ibatis.session.Configuration;
 import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -41,6 +48,8 @@ import org.mockito.Captor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 @ExtendWith(MockitoExtension.class)
 class WithdrawServiceTest {
@@ -52,6 +61,9 @@ class WithdrawServiceTest {
     private UserWalletMapper userWalletMapper;
 
     @Mock
+    private AppUserMapper appUserMapper;
+
+    @Mock
     private SysConfigService sysConfigService;
 
     @Mock
@@ -59,6 +71,9 @@ class WithdrawServiceTest {
 
     @Mock
     private WithdrawAddressValidator addressValidator;
+
+    @Mock
+    private RedisLockClient redisLockClient;
 
     @Captor
     private ArgumentCaptor<WithdrawOrder> withdrawOrderCaptor;
@@ -72,6 +87,12 @@ class WithdrawServiceTest {
         TableInfoHelper.initTableInfo(new MapperBuilderAssistant(configuration, ""), WithdrawOrder.class);
         TableInfoHelper.initTableInfo(new MapperBuilderAssistant(configuration, ""), UserWallet.class);
         TableInfoHelper.initTableInfo(new MapperBuilderAssistant(configuration, ""), WalletTransaction.class);
+    }
+
+    @BeforeEach
+    void setUpRedisLock() {
+        lenient().when(redisLockClient.tryLock(any(), any()))
+                .thenReturn(Optional.of(new RedisLock("test-lock", "test-value")));
     }
 
     @Test
@@ -108,6 +129,24 @@ class WithdrawServiceTest {
         verify(walletService).freeze(eq(10L), any(BigDecimal.class), eq(WalletBusinessType.WITHDRAW),
                 eq(inserted.getWithdrawNo()), eq("FREEZE"), any());
         assertThat(response.status()).isEqualTo(WithdrawOrderStatus.PENDING_REVIEW.name());
+    }
+
+    @Test
+    void createOrderShouldRejectWhenUserCreateLockExists() {
+        when(redisLockClient.tryLock(eq(RedisKeys.withdrawCreateLock(10L)), any())).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> withdrawService.createOrder(10L, new CreateWithdrawOrderRequest(
+                "TRC20",
+                "name",
+                "T123456789ABCDEFGHJKLMNPQRSTUVWXy",
+                new BigDecimal("50.00000000")
+        )))
+                .isInstanceOf(BusinessException.class)
+                .extracting("errorCode")
+                .isEqualTo(ErrorCode.IDEMPOTENCY_CONFLICT);
+
+        verify(withdrawOrderMapper, never()).insert(any(WithdrawOrder.class));
+        verify(walletService, never()).freeze(any(), any(), any(), any(), any(), any());
     }
 
     @Test
@@ -179,6 +218,45 @@ class WithdrawServiceTest {
 
         verify(walletService).unfreeze(eq(10L), any(BigDecimal.class), eq(WalletBusinessType.WITHDRAW),
                 eq("WD001"), eq("UNFREEZE"), any());
+    }
+
+    @Test
+    void cancelShouldRejectWhenWithdrawOperationLockExists() {
+        when(redisLockClient.tryLock(eq(RedisKeys.withdrawOperationLock("WD001", "cancel")), any()))
+                .thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> withdrawService.cancelUserOrder(10L, "WD001"))
+                .isInstanceOf(BusinessException.class)
+                .extracting("errorCode")
+                .isEqualTo(ErrorCode.IDEMPOTENCY_CONFLICT);
+
+        verify(withdrawOrderMapper, never()).selectOne(any(Wrapper.class));
+        verify(walletService, never()).unfreeze(any(), any(), any(), any(), any(), any());
+    }
+
+    @Test
+    void paidShouldReleaseLockAfterTransactionCompletion() {
+        var lock = new RedisLock("withdraw-lock", "owner-token");
+        when(redisLockClient.tryLock(eq(RedisKeys.withdrawOperationLock("WD001", "paid")), any()))
+                .thenReturn(Optional.of(lock));
+        when(withdrawOrderMapper.selectOne(any(Wrapper.class))).thenReturn(order(WithdrawOrderStatus.APPROVED, "50.00000000"),
+                order(WithdrawOrderStatus.PAID, "50.00000000"));
+        when(withdrawOrderMapper.update(any(), any(Wrapper.class))).thenReturn(1);
+        when(walletService.deductFrozen(eq(10L), any(BigDecimal.class), any(BigDecimal.class),
+                eq(WalletBusinessType.WITHDRAW), eq("WD001"), eq("PAID"), any())).thenReturn(tx("WT_PAID"));
+
+        TransactionSynchronizationManager.initSynchronization();
+        try {
+            withdrawService.paid("WD001", new AdminPaidWithdrawRequest("chain-tx"));
+
+            verify(redisLockClient, never()).unlock(any());
+            var synchronizations = TransactionSynchronizationManager.getSynchronizations();
+            assertThat(synchronizations).hasSize(1);
+            synchronizations.get(0).afterCompletion(TransactionSynchronization.STATUS_COMMITTED);
+            verify(redisLockClient).unlock(lock);
+        } finally {
+            TransactionSynchronizationManager.clearSynchronization();
+        }
     }
 
     @Test

@@ -4,6 +4,7 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.compute.rental.common.enums.CommonStatus;
 import com.compute.rental.common.util.DateTimeUtils;
+import com.compute.rental.modules.user.dto.PushDeviceResponse;
 import com.compute.rental.modules.user.dto.RegisterPushDeviceRequest;
 import com.compute.rental.modules.user.entity.UserPushDevice;
 import com.compute.rental.modules.user.mapper.UserPushDeviceMapper;
@@ -21,7 +22,7 @@ public class PushDeviceService {
     }
 
     @Transactional
-    public UserPushDevice register(Long userId, RegisterPushDeviceRequest request) {
+    public PushDeviceResponse register(Long userId, RegisterPushDeviceRequest request) {
         var now = DateTimeUtils.now();
         var existing = userPushDeviceMapper.selectOne(new LambdaQueryWrapper<UserPushDevice>()
                 .eq(UserPushDevice::getDeviceToken, request.deviceToken())
@@ -34,7 +35,7 @@ public class PushDeviceService {
                     .set(UserPushDevice::getStatus, CommonStatus.ENABLED.value())
                     .set(UserPushDevice::getLastActiveAt, now)
                     .set(UserPushDevice::getUpdatedAt, now));
-            return userPushDeviceMapper.selectById(existing.getId());
+            return toResponse(userPushDeviceMapper.selectById(existing.getId()));
         }
         var device = new UserPushDevice();
         device.setUserId(userId);
@@ -45,7 +46,7 @@ public class PushDeviceService {
         device.setCreatedAt(now);
         device.setUpdatedAt(now);
         userPushDeviceMapper.insert(device);
-        return device;
+        return toResponse(device);
     }
 
     @Transactional
@@ -57,9 +58,35 @@ public class PushDeviceService {
                 .set(UserPushDevice::getUpdatedAt, DateTimeUtils.now()));
     }
 
-    public List<UserPushDevice> list(Long userId) {
+    public List<PushDeviceResponse> list(Long userId) {
         return userPushDeviceMapper.selectList(new LambdaQueryWrapper<UserPushDevice>()
                 .eq(UserPushDevice::getUserId, userId)
-                .orderByDesc(UserPushDevice::getId));
+                .orderByDesc(UserPushDevice::getId))
+                .stream()
+                .map(this::toResponse)
+                .toList();
+    }
+
+    private PushDeviceResponse toResponse(UserPushDevice device) {
+        return new PushDeviceResponse(
+                device.getId(),
+                device.getUserId(),
+                device.getDeviceType(),
+                maskDeviceToken(device.getDeviceToken()),
+                device.getStatus(),
+                device.getLastActiveAt(),
+                device.getCreatedAt(),
+                device.getUpdatedAt());
+    }
+
+    private String maskDeviceToken(String deviceToken) {
+        if (deviceToken == null || deviceToken.isBlank()) {
+            return null;
+        }
+        var normalized = deviceToken.trim();
+        if (normalized.length() <= 4) {
+            return "****";
+        }
+        return "****" + normalized.substring(normalized.length() - 4);
     }
 }

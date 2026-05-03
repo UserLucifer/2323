@@ -1,5 +1,7 @@
 package com.compute.rental.modules.commission.entity;
 
+import lombok.Getter;
+import lombok.Setter;
 import java.math.BigDecimal;
 import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableField;
@@ -7,6 +9,8 @@ import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
 import java.time.LocalDateTime;
 
+@Getter
+@Setter
 @TableName("commission_rule")
 public class CommissionRule {
 
@@ -27,53 +31,4 @@ public class CommissionRule {
 
     @TableField("updated_at")
     private LocalDateTime updatedAt;
-
-    public Long getId() {
-        return id;
-    }
-
-    public void setId(Long id) {
-        this.id = id;
-    }
-
-    public Integer getLevelNo() {
-        return levelNo;
-    }
-
-    public void setLevelNo(Integer levelNo) {
-        this.levelNo = levelNo;
-    }
-
-    public BigDecimal getCommissionRate() {
-        return commissionRate;
-    }
-
-    public void setCommissionRate(BigDecimal commissionRate) {
-        this.commissionRate = commissionRate;
-    }
-
-    public Integer getStatus() {
-        return status;
-    }
-
-    public void setStatus(Integer status) {
-        this.status = status;
-    }
-
-    public LocalDateTime getCreatedAt() {
-        return createdAt;
-    }
-
-    public void setCreatedAt(LocalDateTime createdAt) {
-        this.createdAt = createdAt;
-    }
-
-    public LocalDateTime getUpdatedAt() {
-        return updatedAt;
-    }
-
-    public void setUpdatedAt(LocalDateTime updatedAt) {
-        this.updatedAt = updatedAt;
-    }
-
 }

@@ -4,8 +4,12 @@ import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
+import lombok.Getter;
+import lombok.Setter;
 import java.time.LocalDateTime;
 
+@Getter
+@Setter
 @TableName("blog_post")
 public class BlogPost {
 
@@ -50,117 +54,5 @@ public class BlogPost {
 
     @TableField("updated_at")
     private LocalDateTime updatedAt;
-
-    public Long getId() {
-        return id;
-    }
-
-    public void setId(Long id) {
-        this.id = id;
-    }
-
-    public Long getCategoryId() {
-        return categoryId;
-    }
-
-    public void setCategoryId(Long categoryId) {
-        this.categoryId = categoryId;
-    }
-
-    public String getTitle() {
-        return title;
-    }
-
-    public void setTitle(String title) {
-        this.title = title;
-    }
-
-    public String getSummary() {
-        return summary;
-    }
-
-    public void setSummary(String summary) {
-        this.summary = summary;
-    }
-
-    public String getCoverImageUrl() {
-        return coverImageUrl;
-    }
-
-    public void setCoverImageUrl(String coverImageUrl) {
-        this.coverImageUrl = coverImageUrl;
-    }
-
-    public String getContentMarkdown() {
-        return contentMarkdown;
-    }
-
-    public void setContentMarkdown(String contentMarkdown) {
-        this.contentMarkdown = contentMarkdown;
-    }
-
-    public Integer getPublishStatus() {
-        return publishStatus;
-    }
-
-    public void setPublishStatus(Integer publishStatus) {
-        this.publishStatus = publishStatus;
-    }
-
-    public LocalDateTime getPublishedAt() {
-        return publishedAt;
-    }
-
-    public void setPublishedAt(LocalDateTime publishedAt) {
-        this.publishedAt = publishedAt;
-    }
-
-    public Integer getIsTop() {
-        return isTop;
-    }
-
-    public void setIsTop(Integer isTop) {
-        this.isTop = isTop;
-    }
-
-    public Integer getSortNo() {
-        return sortNo;
-    }
-
-    public void setSortNo(Integer sortNo) {
-        this.sortNo = sortNo;
-    }
-
-    public Long getViewCount() {
-        return viewCount;
-    }
-
-    public void setViewCount(Long viewCount) {
-        this.viewCount = viewCount;
-    }
-
-    public Long getCreatedBy() {
-        return createdBy;
-    }
-
-    public void setCreatedBy(Long createdBy) {
-        this.createdBy = createdBy;
-    }
-
-    public LocalDateTime getCreatedAt() {
-        return createdAt;
-    }
-
-    public void setCreatedAt(LocalDateTime createdAt) {
-        this.createdAt = createdAt;
-    }
-
-    public LocalDateTime getUpdatedAt() {
-        return updatedAt;
-    }
-
-    public void setUpdatedAt(LocalDateTime updatedAt) {
-        this.updatedAt = updatedAt;
-    }
 
 }

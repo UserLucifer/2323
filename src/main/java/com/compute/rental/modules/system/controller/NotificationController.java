@@ -2,7 +2,7 @@ package com.compute.rental.modules.system.controller;
 
 import com.compute.rental.common.api.ApiResponse;
 import com.compute.rental.common.page.PageResult;
-import com.compute.rental.modules.system.entity.SysNotification;
+import com.compute.rental.modules.system.dto.NotificationResponse;
 import com.compute.rental.modules.system.service.NotificationService;
 import com.compute.rental.security.CurrentUser;
 import io.swagger.v3.oas.annotations.Operation;
@@ -29,7 +29,7 @@ public class NotificationController {
 
     @Operation(summary = "Current user notifications")
     @GetMapping
-    public ApiResponse<PageResult<SysNotification>> notifications(
+    public ApiResponse<PageResult<NotificationResponse>> notifications(
             @RequestParam(defaultValue = "1") long pageNo,
             @RequestParam(defaultValue = "10") long pageSize,
             @RequestParam(required = false, name = "read_status") Integer readStatus,
@@ -46,14 +46,14 @@ public class NotificationController {
 
     @Operation(summary = "Current user notification detail")
     @GetMapping("/{id}")
-    public ApiResponse<SysNotification> notification(@PathVariable Long id) {
+    public ApiResponse<NotificationResponse> notification(@PathVariable Long id) {
         var user = CurrentUser.required();
         return ApiResponse.success(notificationService.getUserNotification(user.id(), id));
     }
 
     @Operation(summary = "Mark notification read")
     @PostMapping("/{id}/read")
-    public ApiResponse<SysNotification> read(@PathVariable Long id) {
+    public ApiResponse<NotificationResponse> read(@PathVariable Long id) {
         var user = CurrentUser.required();
         return ApiResponse.success(notificationService.markUserNotificationRead(user.id(), id));
     }

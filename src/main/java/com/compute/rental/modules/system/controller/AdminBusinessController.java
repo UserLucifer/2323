@@ -2,21 +2,21 @@ package com.compute.rental.modules.system.controller;
 
 import com.compute.rental.common.api.ApiResponse;
 import com.compute.rental.common.page.PageResult;
-import com.compute.rental.modules.commission.entity.CommissionRecord;
-import com.compute.rental.modules.order.entity.ApiDeployOrder;
-import com.compute.rental.modules.order.entity.RentalOrder;
-import com.compute.rental.modules.order.entity.RentalProfitRecord;
-import com.compute.rental.modules.order.entity.RentalSettlementOrder;
 import com.compute.rental.modules.system.dto.AdminApiCredentialResponse;
+import com.compute.rental.modules.system.dto.AdminApiDeployOrderResponse;
+import com.compute.rental.modules.system.dto.AdminCommissionRecordResponse;
+import com.compute.rental.modules.system.dto.AdminLogResponse;
+import com.compute.rental.modules.system.dto.AdminProfitRecordResponse;
 import com.compute.rental.modules.system.dto.AdminRentalOrderDetailResponse;
+import com.compute.rental.modules.system.dto.AdminRentalOrderResponse;
+import com.compute.rental.modules.system.dto.AdminSettlementOrderResponse;
+import com.compute.rental.modules.system.dto.AdminTeamRelationResponse;
 import com.compute.rental.modules.system.dto.AdminUserResponse;
 import com.compute.rental.modules.system.dto.AdminUserTeamResponse;
 import com.compute.rental.modules.system.dto.AdminWalletResponse;
-import com.compute.rental.modules.system.entity.SysAdminLog;
+import com.compute.rental.modules.system.dto.AdminWalletTransactionResponse;
 import com.compute.rental.modules.system.service.AdminBusinessQueryService;
 import com.compute.rental.modules.system.service.AdminLogService;
-import com.compute.rental.modules.user.entity.UserTeamRelation;
-import com.compute.rental.modules.wallet.entity.WalletTransaction;
 import com.compute.rental.security.CurrentUser;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -103,7 +103,7 @@ public class AdminBusinessController {
 
     @Operation(summary = "Admin wallet transactions")
     @GetMapping("/wallet-transactions")
-    public ApiResponse<PageResult<WalletTransaction>> walletTransactions(
+    public ApiResponse<PageResult<AdminWalletTransactionResponse>> walletTransactions(
             @RequestParam(defaultValue = "1") long pageNo,
             @RequestParam(defaultValue = "10") long pageSize,
             @RequestParam(required = false, name = "user_id") Long userId,
@@ -121,7 +121,7 @@ public class AdminBusinessController {
 
     @Operation(summary = "Admin rental orders")
     @GetMapping("/rental/orders")
-    public ApiResponse<PageResult<RentalOrder>> rentalOrders(
+    public ApiResponse<PageResult<AdminRentalOrderResponse>> rentalOrders(
             @RequestParam(defaultValue = "1") long pageNo,
             @RequestParam(defaultValue = "10") long pageSize,
             @RequestParam(required = false, name = "user_id") Long userId,
@@ -169,7 +169,7 @@ public class AdminBusinessController {
 
     @Operation(summary = "Admin API deploy orders")
     @GetMapping("/api-deploy-orders")
-    public ApiResponse<PageResult<ApiDeployOrder>> apiDeployOrders(
+    public ApiResponse<PageResult<AdminApiDeployOrderResponse>> apiDeployOrders(
             @RequestParam(defaultValue = "1") long pageNo,
             @RequestParam(defaultValue = "10") long pageSize,
             @RequestParam(required = false, name = "user_id") Long userId,
@@ -186,13 +186,13 @@ public class AdminBusinessController {
 
     @Operation(summary = "Admin API deploy order detail")
     @GetMapping("/api-deploy-orders/{deployNo}")
-    public ApiResponse<ApiDeployOrder> apiDeployOrder(@PathVariable String deployNo) {
+    public ApiResponse<AdminApiDeployOrderResponse> apiDeployOrder(@PathVariable String deployNo) {
         return ApiResponse.success(adminBusinessQueryService.getApiDeployOrder(deployNo));
     }
 
     @Operation(summary = "Admin profit records")
     @GetMapping("/profit/records")
-    public ApiResponse<PageResult<RentalProfitRecord>> profitRecords(
+    public ApiResponse<PageResult<AdminProfitRecordResponse>> profitRecords(
             @RequestParam(defaultValue = "1") long pageNo,
             @RequestParam(defaultValue = "10") long pageSize,
             @RequestParam(required = false, name = "user_id") Long userId,
@@ -211,13 +211,13 @@ public class AdminBusinessController {
 
     @Operation(summary = "Admin profit record detail")
     @GetMapping("/profit/records/{profitNo}")
-    public ApiResponse<RentalProfitRecord> profitRecord(@PathVariable String profitNo) {
+    public ApiResponse<AdminProfitRecordResponse> profitRecord(@PathVariable String profitNo) {
         return ApiResponse.success(adminBusinessQueryService.getProfitRecord(profitNo));
     }
 
     @Operation(summary = "Admin settlement orders")
     @GetMapping("/settlement/orders")
-    public ApiResponse<PageResult<RentalSettlementOrder>> settlementOrders(
+    public ApiResponse<PageResult<AdminSettlementOrderResponse>> settlementOrders(
             @RequestParam(defaultValue = "1") long pageNo,
             @RequestParam(defaultValue = "10") long pageSize,
             @RequestParam(required = false, name = "user_id") Long userId,
@@ -235,13 +235,13 @@ public class AdminBusinessController {
 
     @Operation(summary = "Admin settlement order detail")
     @GetMapping("/settlement/orders/{settlementNo}")
-    public ApiResponse<RentalSettlementOrder> settlementOrder(@PathVariable String settlementNo) {
+    public ApiResponse<AdminSettlementOrderResponse> settlementOrder(@PathVariable String settlementNo) {
         return ApiResponse.success(adminBusinessQueryService.getSettlementOrder(settlementNo));
     }
 
     @Operation(summary = "Admin commission records")
     @GetMapping("/commission/records")
-    public ApiResponse<PageResult<CommissionRecord>> commissionRecords(
+    public ApiResponse<PageResult<AdminCommissionRecordResponse>> commissionRecords(
             @RequestParam(defaultValue = "1") long pageNo,
             @RequestParam(defaultValue = "10") long pageSize,
             @RequestParam(required = false, name = "user_id") Long userId,
@@ -259,13 +259,13 @@ public class AdminBusinessController {
 
     @Operation(summary = "Admin commission record detail")
     @GetMapping("/commission/records/{commissionNo}")
-    public ApiResponse<CommissionRecord> commissionRecord(@PathVariable String commissionNo) {
+    public ApiResponse<AdminCommissionRecordResponse> commissionRecord(@PathVariable String commissionNo) {
         return ApiResponse.success(adminBusinessQueryService.getCommissionRecord(commissionNo));
     }
 
     @Operation(summary = "Admin team relations")
     @GetMapping("/team/relations")
-    public ApiResponse<PageResult<UserTeamRelation>> teamRelations(
+    public ApiResponse<PageResult<AdminTeamRelationResponse>> teamRelations(
             @RequestParam(defaultValue = "1") long pageNo,
             @RequestParam(defaultValue = "10") long pageSize,
             @RequestParam(required = false, name = "ancestor_user_id") Long ancestorUserId,
@@ -284,7 +284,7 @@ public class AdminBusinessController {
 
     @Operation(summary = "Admin operation logs")
     @GetMapping("/logs")
-    public ApiResponse<PageResult<SysAdminLog>> logs(
+    public ApiResponse<PageResult<AdminLogResponse>> logs(
             @RequestParam(defaultValue = "1") long pageNo,
             @RequestParam(defaultValue = "10") long pageSize,
             @RequestParam(required = false, name = "admin_id") Long adminId,
@@ -301,7 +301,7 @@ public class AdminBusinessController {
 
     @Operation(summary = "Admin operation log detail")
     @GetMapping("/logs/{id}")
-    public ApiResponse<SysAdminLog> log(@PathVariable Long id) {
+    public ApiResponse<AdminLogResponse> log(@PathVariable Long id) {
         return ApiResponse.success(adminBusinessQueryService.getLog(id));
     }
 }

@@ -8,6 +8,7 @@ import com.compute.rental.common.enums.ErrorCode;
 import com.compute.rental.common.exception.BusinessException;
 import com.compute.rental.common.util.DateTimeUtils;
 import com.compute.rental.common.util.MoneyUtils;
+import com.compute.rental.common.util.RedisKeys;
 import com.compute.rental.modules.auth.dto.LoginRequest;
 import com.compute.rental.modules.auth.dto.LoginResponse;
 import com.compute.rental.modules.auth.dto.ResetPasswordRequest;
@@ -31,6 +32,7 @@ import com.compute.rental.security.jwt.JwtTokenProvider;
 import java.time.Duration;
 import java.util.Locale;
 import java.util.UUID;
+import org.springframework.dao.DataAccessException;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -43,7 +45,8 @@ public class AuthService {
 
     private static final String LOGIN_ROLE = "USER";
     private static final String CURRENCY_USDT = "USDT";
-    private static final String RATE_LIMIT_KEY_PREFIX = "email_code_rate:";
+    private static final Duration EMAIL_CODE_SEND_COOLDOWN = Duration.ofSeconds(10);
+    private static final int EMAIL_CODE_MAX_VERIFY_ATTEMPTS = 5;
 
     private final AuthProperties authProperties;
     private final VerificationCodeGenerator codeGenerator;
@@ -173,12 +176,18 @@ public class AuthService {
         return new LoginResponse(
                 token,
                 "Bearer",
-                new LoginResponse.UserProfile(user.getId(), user.getUserId(), user.getEmail(), user.getUserName())
+                new LoginResponse.UserProfile(
+                        user.getId(),
+                        user.getUserId(),
+                        user.getEmail(),
+                        user.getUserName(),
+                        user.getAvatarKey()
+                )
         );
     }
 
     private String createEmailCode(String email, EmailVerifyScene scene, String sendIp) {
-        enforceEmailCodeRateLimit(email, scene);
+        enforceEmailCodeRedisLimits(email, scene);
         var code = codeGenerator.generate(authProperties.codeLength());
         var now = DateTimeUtils.now();
 
@@ -194,18 +203,30 @@ public class AuthService {
         return code;
     }
 
-    private void enforceEmailCodeRateLimit(String email, EmailVerifyScene scene) {
-        var key = RATE_LIMIT_KEY_PREFIX + email + ":" + scene.name();
-        var count = redisTemplate.opsForValue().increment(key);
-        if (count != null && count == 1L) {
-            redisTemplate.expire(key, Duration.ofSeconds(60));
-        }
-        if (count != null && count > authProperties.rateLimitPerMinute()) {
-            throw new BusinessException(ErrorCode.TOO_MANY_REQUESTS, "邮箱验证码发送过于频繁");
+    private void enforceEmailCodeRedisLimits(String email, EmailVerifyScene scene) {
+        try {
+            var cooldownKey = RedisKeys.emailCodeCooldown(email, scene.name());
+            var acquired = redisTemplate.opsForValue().setIfAbsent(cooldownKey, "1", EMAIL_CODE_SEND_COOLDOWN);
+            if (!Boolean.TRUE.equals(acquired)) {
+                throw new BusinessException(ErrorCode.TOO_MANY_REQUESTS, "Email verification code sent too frequently");
+            }
+
+            var rateKey = RedisKeys.emailCodeRate(email, scene.name());
+            var count = redisTemplate.opsForValue().increment(rateKey);
+            if (count != null && count == 1L) {
+                redisTemplate.expire(rateKey, Duration.ofSeconds(60));
+            }
+            if (count != null && count > authProperties.rateLimitPerMinute()) {
+                throw new BusinessException(ErrorCode.TOO_MANY_REQUESTS, "Email verification code sent too frequently");
+            }
+        } catch (DataAccessException ex) {
+            throw new BusinessException(ErrorCode.SYSTEM_ERROR, "Email verification rate limit unavailable");
         }
     }
 
     private void verifyEmailCode(String email, String rawCode, EmailVerifyScene scene, boolean consume) {
+        var attemptsKey = RedisKeys.emailCodeAttempts(email, scene.name());
+        ensureEmailCodeVerifyAttemptsAvailable(attemptsKey);
         var now = DateTimeUtils.now();
         var code = emailVerifyCodeMapper.selectOne(new LambdaQueryWrapper<EmailVerifyCode>()
                 .eq(EmailVerifyCode::getEmail, email)
@@ -215,18 +236,49 @@ public class AuthService {
                 .orderByDesc(EmailVerifyCode::getId)
                 .last("LIMIT 1"));
         if (code == null) {
+            recordFailedEmailCodeAttempt(attemptsKey);
             throw new BusinessException(ErrorCode.BAD_REQUEST, "邮箱验证码无效或已过期");
         }
         var expectedHash = codeHasher.hash(email, scene.name(), rawCode);
         if (!expectedHash.equals(code.getCodeHash())) {
+            recordFailedEmailCodeAttempt(attemptsKey);
             throw new BusinessException(ErrorCode.BAD_REQUEST, "邮箱验证码无效或已过期");
         }
+        redisTemplate.delete(attemptsKey);
         if (!consume) {
             return;
         }
         code.setStatus(EmailVerifyStatus.USED.value());
         code.setUsedAt(now);
         emailVerifyCodeMapper.updateById(code);
+    }
+
+    private void ensureEmailCodeVerifyAttemptsAvailable(String attemptsKey) {
+        try {
+            var attemptsValue = redisTemplate.opsForValue().get(attemptsKey);
+            if (StringUtils.hasText(attemptsValue)
+                    && Long.parseLong(attemptsValue) >= EMAIL_CODE_MAX_VERIFY_ATTEMPTS) {
+                throw new BusinessException(ErrorCode.TOO_MANY_REQUESTS, "Email verification attempts exceeded");
+            }
+        } catch (NumberFormatException ex) {
+            redisTemplate.delete(attemptsKey);
+        } catch (DataAccessException ex) {
+            throw new BusinessException(ErrorCode.SYSTEM_ERROR, "Email verification attempt limit unavailable");
+        }
+    }
+
+    private void recordFailedEmailCodeAttempt(String attemptsKey) {
+        try {
+            var attempts = redisTemplate.opsForValue().increment(attemptsKey);
+            if (attempts != null && attempts == 1L) {
+                redisTemplate.expire(attemptsKey, authProperties.codeTtl());
+            }
+            if (attempts != null && attempts >= EMAIL_CODE_MAX_VERIFY_ATTEMPTS) {
+                throw new BusinessException(ErrorCode.TOO_MANY_REQUESTS, "Email verification attempts exceeded");
+            }
+        } catch (DataAccessException ex) {
+            throw new BusinessException(ErrorCode.SYSTEM_ERROR, "Email verification attempt limit unavailable");
+        }
     }
 
     private AppUser registerUser(String email, String userName, String passwordHash, String inviteCode) {
@@ -366,6 +418,6 @@ public class AuthService {
     }
 
     private String generateInviteCode() {
-        return UUID.randomUUID().toString().replace("-", "").substring(0, 8).toUpperCase(Locale.ROOT);
+        return UUID.randomUUID().toString().replace("-", "").substring(0, 6).toUpperCase(Locale.ROOT);
     }
 }

@@ -7,25 +7,41 @@ import com.compute.rental.common.enums.ErrorCode;
 import com.compute.rental.common.exception.BusinessException;
 import com.compute.rental.common.page.PageResult;
 import com.compute.rental.common.util.DateTimeUtils;
+import com.compute.rental.common.util.RedisKeys;
 import com.compute.rental.modules.system.dto.AdminSysConfigQueryRequest;
 import com.compute.rental.modules.system.dto.AdminSysConfigResponse;
 import com.compute.rental.modules.system.dto.UpdateSysConfigRequest;
 import com.compute.rental.modules.system.entity.SysConfig;
 import com.compute.rental.modules.system.mapper.SysConfigMapper;
 import java.math.BigDecimal;
+import java.time.Duration;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.util.StringUtils;
 
 @Service
 public class SysConfigService {
 
+    private static final Logger log = LoggerFactory.getLogger(SysConfigService.class);
+    private static final Duration CONFIG_CACHE_TTL = Duration.ofMinutes(10);
+
     private final SysConfigMapper sysConfigMapper;
     private final AdminLogService adminLogService;
+    private final StringRedisTemplate redisTemplate;
 
-    public SysConfigService(SysConfigMapper sysConfigMapper, AdminLogService adminLogService) {
+    public SysConfigService(
+            SysConfigMapper sysConfigMapper,
+            AdminLogService adminLogService,
+            StringRedisTemplate redisTemplate
+    ) {
         this.sysConfigMapper = sysConfigMapper;
         this.adminLogService = adminLogService;
+        this.redisTemplate = redisTemplate;
     }
 
     public String getString(String key) {
@@ -33,10 +49,15 @@ public class SysConfigService {
     }
 
     public String getString(String key, String defaultValue) {
+        var cachedValue = getCachedValue(key);
+        if (StringUtils.hasText(cachedValue)) {
+            return cachedValue;
+        }
         var config = sysConfigMapper.selectOne(new LambdaQueryWrapper<SysConfig>()
                 .eq(SysConfig::getConfigKey, key)
                 .last("LIMIT 1"));
         if (config != null && StringUtils.hasText(config.getConfigValue())) {
+            cacheValue(key, config.getConfigValue());
             return config.getConfigValue();
         }
         if (defaultValue != null) {
@@ -93,6 +114,7 @@ public class SysConfigService {
         var config = requireConfig(configKey);
         var before = snapshot(config);
         var now = DateTimeUtils.now();
+        evictConfigCache(configKey);
         var updated = sysConfigMapper.update(null, new LambdaUpdateWrapper<SysConfig>()
                 .eq(SysConfig::getId, config.getId())
                 .set(SysConfig::getConfigValue, request.configValue().trim())
@@ -102,9 +124,48 @@ public class SysConfigService {
             throw new BusinessException(ErrorCode.CONCURRENT_UPDATE_FAILED, "系统配置更新失败");
         }
         var after = sysConfigMapper.selectById(config.getId());
+        evictConfigCacheAfterCommit(configKey);
         adminLogService.log(adminId, AdminLogService.UPDATE_SYS_CONFIG, "sys_config", config.getId(),
                 before, snapshot(after), "Update config " + config.getConfigKey(), ip);
         return toAdminResponse(after);
+    }
+
+    private String getCachedValue(String key) {
+        try {
+            return redisTemplate.opsForValue().get(RedisKeys.sysConfig(key));
+        } catch (RuntimeException ex) {
+            log.warn("Read sys_config cache failed, key={}", key, ex);
+            return null;
+        }
+    }
+
+    private void cacheValue(String key, String value) {
+        try {
+            redisTemplate.opsForValue().set(RedisKeys.sysConfig(key), value, CONFIG_CACHE_TTL);
+        } catch (RuntimeException ex) {
+            log.warn("Write sys_config cache failed, key={}", key, ex);
+        }
+    }
+
+    private void evictConfigCache(String key) {
+        try {
+            redisTemplate.delete(RedisKeys.sysConfig(key));
+        } catch (RuntimeException ex) {
+            log.warn("Evict sys_config cache failed, key={}", key, ex);
+        }
+    }
+
+    private void evictConfigCacheAfterCommit(String key) {
+        if (!TransactionSynchronizationManager.isSynchronizationActive()) {
+            evictConfigCache(key);
+            return;
+        }
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                evictConfigCache(key);
+            }
+        });
     }
 
     private SysConfig requireConfig(String configKey) {

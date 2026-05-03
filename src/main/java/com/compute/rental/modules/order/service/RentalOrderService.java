@@ -12,9 +12,13 @@ import com.compute.rental.common.enums.RentalOrderSettlementStatus;
 import com.compute.rental.common.enums.RentalOrderStatus;
 import com.compute.rental.common.enums.WalletBusinessType;
 import com.compute.rental.common.exception.BusinessException;
+import com.compute.rental.common.page.PageParam;
 import com.compute.rental.common.page.PageResult;
 import com.compute.rental.common.util.DateTimeUtils;
 import com.compute.rental.common.util.MoneyUtils;
+import com.compute.rental.common.util.RedisKeys;
+import com.compute.rental.common.util.RedisLockClient;
+import com.compute.rental.common.util.RedisLockClient.RedisLock;
 import com.compute.rental.modules.order.dto.ApiCredentialResponse;
 import com.compute.rental.modules.order.dto.ApiDeployInfoResponse;
 import com.compute.rental.modules.order.dto.ApiDeployOrderResponse;
@@ -42,14 +46,18 @@ import com.compute.rental.modules.user.entity.AppUser;
 import com.compute.rental.modules.user.mapper.AppUserMapper;
 import com.compute.rental.modules.wallet.service.WalletService;
 import java.math.BigDecimal;
+import java.time.Duration;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
+import java.util.function.Supplier;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 @Service
 public class RentalOrderService {
@@ -57,6 +65,7 @@ public class RentalOrderService {
     private static final String CURRENCY_USDT = "USDT";
     private static final String PAY_ACTION = "PAY";
     private static final String CANCEL_ACTION = "CANCEL";
+    private static final Duration ORDER_OPERATION_LOCK_TTL = Duration.ofMinutes(1);
 
     private final RentalOrderMapper rentalOrderMapper;
     private final ApiDeployOrderMapper apiDeployOrderMapper;
@@ -70,6 +79,7 @@ public class RentalOrderService {
     private final WalletService walletService;
     private final ApiTokenCryptoService apiTokenCryptoService;
     private final ApiTokenProperties apiTokenProperties;
+    private final RedisLockClient redisLockClient;
 
     public RentalOrderService(
             RentalOrderMapper rentalOrderMapper,
@@ -83,7 +93,8 @@ public class RentalOrderService {
             AppUserMapper appUserMapper,
             WalletService walletService,
             ApiTokenCryptoService apiTokenCryptoService,
-            ApiTokenProperties apiTokenProperties
+            ApiTokenProperties apiTokenProperties,
+            RedisLockClient redisLockClient
     ) {
         this.rentalOrderMapper = rentalOrderMapper;
         this.apiDeployOrderMapper = apiDeployOrderMapper;
@@ -97,6 +108,7 @@ public class RentalOrderService {
         this.walletService = walletService;
         this.apiTokenCryptoService = apiTokenCryptoService;
         this.apiTokenProperties = apiTokenProperties;
+        this.redisLockClient = redisLockClient;
     }
 
     @Transactional
@@ -127,6 +139,36 @@ public class RentalOrderService {
                 result.getTotal(), result.getCurrent(), result.getSize());
     }
 
+    public PageResult<ApiDeployInfoResponse> pageUserApiManagement(Long userId, PageParam request) {
+        var page = new Page<ApiCredential>(request.current(), request.size());
+        var wrapper = new LambdaQueryWrapper<ApiCredential>()
+                .eq(ApiCredential::getUserId, userId)
+                .orderByDesc(ApiCredential::getId);
+        var result = apiCredentialMapper.selectPage(page, wrapper);
+        var credentials = result.getRecords();
+        if (credentials.isEmpty()) {
+            return new PageResult<>(List.of(), result.getTotal(), result.getCurrent(), result.getSize());
+        }
+
+        var orderIds = credentials.stream().map(ApiCredential::getRentalOrderId).toList();
+        var orderMap = new HashMap<Long, RentalOrder>();
+        rentalOrderMapper.selectBatchIds(orderIds).forEach(order -> orderMap.put(order.getId(), order));
+
+        var credentialIds = credentials.stream().map(ApiCredential::getId).toList();
+        var deployOrderMap = new HashMap<Long, ApiDeployOrder>();
+        apiDeployOrderMapper.selectList(new LambdaQueryWrapper<ApiDeployOrder>()
+                        .in(ApiDeployOrder::getApiCredentialId, credentialIds))
+                .forEach(deployOrder -> deployOrderMap.put(deployOrder.getApiCredentialId(), deployOrder));
+
+        return new PageResult<>(credentials.stream()
+                .map(credential -> toDeployInfoResponse(
+                        orderMap.get(credential.getRentalOrderId()),
+                        credential,
+                        deployOrderMap.get(credential.getId())))
+                .toList(),
+                result.getTotal(), result.getCurrent(), result.getSize());
+    }
+
     public RentalOrderDetailResponse getUserOrder(Long userId, String orderNo) {
         var order = requireUserOrder(userId, orderNo);
         return toDetailResponse(order, findCredential(order.getId()));
@@ -134,6 +176,10 @@ public class RentalOrderService {
 
     @Transactional
     public RentalOrderDetailResponse payMachineFee(Long userId, String orderNo) {
+        return withOrderOperationLock(orderNo, "machine-pay", () -> doPayMachineFee(userId, orderNo));
+    }
+
+    private RentalOrderDetailResponse doPayMachineFee(Long userId, String orderNo) {
         var order = requireUserOrder(userId, orderNo);
         if (!RentalOrderStatus.PENDING_PAY.name().equals(order.getOrderStatus())) {
             throw new BusinessException(ErrorCode.BUSINESS_ERROR, "仅待支付租赁订单可支付");
@@ -169,6 +215,10 @@ public class RentalOrderService {
 
     @Transactional
     public RentalOrderDetailResponse cancelOrder(Long userId, String orderNo) {
+        return withOrderOperationLock(orderNo, "cancel", () -> doCancelOrder(userId, orderNo));
+    }
+
+    private RentalOrderDetailResponse doCancelOrder(Long userId, String orderNo) {
         var order = requireUserOrder(userId, orderNo);
         if (RentalOrderStatus.PENDING_PAY.name().equals(order.getOrderStatus())) {
             cancelPendingPay(order);
@@ -198,6 +248,10 @@ public class RentalOrderService {
 
     @Transactional
     public ApiDeployOrderResponse payDeployFee(Long userId, String orderNo) {
+        return withOrderOperationLock(orderNo, "deploy-pay", () -> doPayDeployFee(userId, orderNo));
+    }
+
+    private ApiDeployOrderResponse doPayDeployFee(Long userId, String orderNo) {
         var order = requireUserOrder(userId, orderNo);
         var credential = requireCredential(order.getId());
         var existing = findDeployOrder(order.getId(), credential.getId());
@@ -275,6 +329,10 @@ public class RentalOrderService {
 
     @Transactional
     public RentalOrderDetailResponse startOrder(Long userId, String orderNo) {
+        return withOrderOperationLock(orderNo, "start", () -> doStartOrder(userId, orderNo));
+    }
+
+    private RentalOrderDetailResponse doStartOrder(Long userId, String orderNo) {
         var order = requireUserOrder(userId, orderNo);
         if (!RentalOrderStatus.PAUSED.name().equals(order.getOrderStatus())) {
             throw new BusinessException(ErrorCode.BUSINESS_ERROR, "仅已暂停租赁订单可启动");
@@ -307,6 +365,35 @@ public class RentalOrderService {
             throw new BusinessException(ErrorCode.CONCURRENT_UPDATE_FAILED, "API 凭证状态已变化");
         }
         return getUserOrder(userId, orderNo);
+    }
+
+    private <T> T withOrderOperationLock(String orderNo, String operation, Supplier<T> action) {
+        var lockKey = RedisKeys.orderOperationLock(orderNo, operation);
+        var lock = redisLockClient.tryLock(lockKey, ORDER_OPERATION_LOCK_TTL);
+        if (lock.isEmpty()) {
+            throw new BusinessException(ErrorCode.IDEMPOTENCY_CONFLICT, "璁㈠崟姝ｅ湪澶勭悊锛岃绋嶅悗閲嶈瘯");
+        }
+        var releaseRegistered = registerUnlockAfterTransaction(lock.get());
+        try {
+            return action.get();
+        } finally {
+            if (!releaseRegistered) {
+                redisLockClient.unlock(lock.get());
+            }
+        }
+    }
+
+    private boolean registerUnlockAfterTransaction(RedisLock lock) {
+        if (!TransactionSynchronizationManager.isSynchronizationActive()) {
+            return false;
+        }
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCompletion(int status) {
+                redisLockClient.unlock(lock);
+            }
+        });
+        return true;
     }
 
     private void cancelPendingPay(RentalOrder order) {

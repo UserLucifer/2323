@@ -1,5 +1,7 @@
 package com.compute.rental.modules.order.entity;
 
+import lombok.Getter;
+import lombok.Setter;
 import java.math.BigDecimal;
 import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableField;
@@ -7,6 +9,8 @@ import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
 import java.time.LocalDateTime;
 
+@Getter
+@Setter
 @TableName("api_credential")
 public class ApiCredential {
 
@@ -84,205 +88,5 @@ public class ApiCredential {
 
     @TableField("updated_at")
     private LocalDateTime updatedAt;
-
-    public Long getId() {
-        return id;
-    }
-
-    public void setId(Long id) {
-        this.id = id;
-    }
-
-    public String getCredentialNo() {
-        return credentialNo;
-    }
-
-    public void setCredentialNo(String credentialNo) {
-        this.credentialNo = credentialNo;
-    }
-
-    public Long getUserId() {
-        return userId;
-    }
-
-    public void setUserId(Long userId) {
-        this.userId = userId;
-    }
-
-    public Long getRentalOrderId() {
-        return rentalOrderId;
-    }
-
-    public void setRentalOrderId(Long rentalOrderId) {
-        this.rentalOrderId = rentalOrderId;
-    }
-
-    public String getApiName() {
-        return apiName;
-    }
-
-    public void setApiName(String apiName) {
-        this.apiName = apiName;
-    }
-
-    public String getApiBaseUrl() {
-        return apiBaseUrl;
-    }
-
-    public void setApiBaseUrl(String apiBaseUrl) {
-        this.apiBaseUrl = apiBaseUrl;
-    }
-
-    public String getTokenCiphertext() {
-        return tokenCiphertext;
-    }
-
-    public void setTokenCiphertext(String tokenCiphertext) {
-        this.tokenCiphertext = tokenCiphertext;
-    }
-
-    public String getTokenMasked() {
-        return tokenMasked;
-    }
-
-    public void setTokenMasked(String tokenMasked) {
-        this.tokenMasked = tokenMasked;
-    }
-
-    public String getModelNameSnapshot() {
-        return modelNameSnapshot;
-    }
-
-    public void setModelNameSnapshot(String modelNameSnapshot) {
-        this.modelNameSnapshot = modelNameSnapshot;
-    }
-
-    public BigDecimal getDeployFeeSnapshot() {
-        return deployFeeSnapshot;
-    }
-
-    public void setDeployFeeSnapshot(BigDecimal deployFeeSnapshot) {
-        this.deployFeeSnapshot = deployFeeSnapshot;
-    }
-
-    public String getTokenStatus() {
-        return tokenStatus;
-    }
-
-    public void setTokenStatus(String tokenStatus) {
-        this.tokenStatus = tokenStatus;
-    }
-
-    public LocalDateTime getGeneratedAt() {
-        return generatedAt;
-    }
-
-    public void setGeneratedAt(LocalDateTime generatedAt) {
-        this.generatedAt = generatedAt;
-    }
-
-    public LocalDateTime getActivationPaidAt() {
-        return activationPaidAt;
-    }
-
-    public void setActivationPaidAt(LocalDateTime activationPaidAt) {
-        this.activationPaidAt = activationPaidAt;
-    }
-
-    public LocalDateTime getActivatedAt() {
-        return activatedAt;
-    }
-
-    public void setActivatedAt(LocalDateTime activatedAt) {
-        this.activatedAt = activatedAt;
-    }
-
-    public LocalDateTime getAutoPauseAt() {
-        return autoPauseAt;
-    }
-
-    public void setAutoPauseAt(LocalDateTime autoPauseAt) {
-        this.autoPauseAt = autoPauseAt;
-    }
-
-    public LocalDateTime getPausedAt() {
-        return pausedAt;
-    }
-
-    public void setPausedAt(LocalDateTime pausedAt) {
-        this.pausedAt = pausedAt;
-    }
-
-    public LocalDateTime getStartedAt() {
-        return startedAt;
-    }
-
-    public void setStartedAt(LocalDateTime startedAt) {
-        this.startedAt = startedAt;
-    }
-
-    public LocalDateTime getExpiredAt() {
-        return expiredAt;
-    }
-
-    public void setExpiredAt(LocalDateTime expiredAt) {
-        this.expiredAt = expiredAt;
-    }
-
-    public LocalDateTime getRevokedAt() {
-        return revokedAt;
-    }
-
-    public void setRevokedAt(LocalDateTime revokedAt) {
-        this.revokedAt = revokedAt;
-    }
-
-    public Long getMockRequestCount() {
-        return mockRequestCount;
-    }
-
-    public void setMockRequestCount(Long mockRequestCount) {
-        this.mockRequestCount = mockRequestCount;
-    }
-
-    public Long getMockTokenDisplay() {
-        return mockTokenDisplay;
-    }
-
-    public void setMockTokenDisplay(Long mockTokenDisplay) {
-        this.mockTokenDisplay = mockTokenDisplay;
-    }
-
-    public LocalDateTime getMockLastRefreshAt() {
-        return mockLastRefreshAt;
-    }
-
-    public void setMockLastRefreshAt(LocalDateTime mockLastRefreshAt) {
-        this.mockLastRefreshAt = mockLastRefreshAt;
-    }
-
-    public String getRemark() {
-        return remark;
-    }
-
-    public void setRemark(String remark) {
-        this.remark = remark;
-    }
-
-    public LocalDateTime getCreatedAt() {
-        return createdAt;
-    }
-
-    public void setCreatedAt(LocalDateTime createdAt) {
-        this.createdAt = createdAt;
-    }
-
-    public LocalDateTime getUpdatedAt() {
-        return updatedAt;
-    }
-
-    public void setUpdatedAt(LocalDateTime updatedAt) {
-        this.updatedAt = updatedAt;
-    }
 
 }

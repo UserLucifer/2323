@@ -4,9 +4,13 @@ import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
+import lombok.Getter;
+import lombok.Setter;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
+@Getter
+@Setter
 @TableName("commission_record")
 public class CommissionRecord {
 
@@ -60,141 +64,5 @@ public class CommissionRecord {
 
     @TableField("updated_at")
     private LocalDateTime updatedAt;
-
-    public Long getId() {
-        return id;
-    }
-
-    public void setId(Long id) {
-        this.id = id;
-    }
-
-    public String getCommissionNo() {
-        return commissionNo;
-    }
-
-    public void setCommissionNo(String commissionNo) {
-        this.commissionNo = commissionNo;
-    }
-
-    public Long getBenefitUserId() {
-        return benefitUserId;
-    }
-
-    public void setBenefitUserId(Long benefitUserId) {
-        this.benefitUserId = benefitUserId;
-    }
-
-    public Long getSourceUserId() {
-        return sourceUserId;
-    }
-
-    public void setSourceUserId(Long sourceUserId) {
-        this.sourceUserId = sourceUserId;
-    }
-
-    public String getUserName() {
-        return userName;
-    }
-
-    public void setUserName(String userName) {
-        this.userName = userName;
-    }
-
-    public Long getSourceOrderId() {
-        return sourceOrderId;
-    }
-
-    public void setSourceOrderId(Long sourceOrderId) {
-        this.sourceOrderId = sourceOrderId;
-    }
-
-    public Long getSourceProfitId() {
-        return sourceProfitId;
-    }
-
-    public void setSourceProfitId(Long sourceProfitId) {
-        this.sourceProfitId = sourceProfitId;
-    }
-
-    public Integer getLevelNo() {
-        return levelNo;
-    }
-
-    public void setLevelNo(Integer levelNo) {
-        this.levelNo = levelNo;
-    }
-
-    public String getCurrency() {
-        return currency;
-    }
-
-    public void setCurrency(String currency) {
-        this.currency = currency;
-    }
-
-    public BigDecimal getSourceProfitAmount() {
-        return sourceProfitAmount;
-    }
-
-    public void setSourceProfitAmount(BigDecimal sourceProfitAmount) {
-        this.sourceProfitAmount = sourceProfitAmount;
-    }
-
-    public BigDecimal getCommissionRateSnapshot() {
-        return commissionRateSnapshot;
-    }
-
-    public void setCommissionRateSnapshot(BigDecimal commissionRateSnapshot) {
-        this.commissionRateSnapshot = commissionRateSnapshot;
-    }
-
-    public BigDecimal getCommissionAmount() {
-        return commissionAmount;
-    }
-
-    public void setCommissionAmount(BigDecimal commissionAmount) {
-        this.commissionAmount = commissionAmount;
-    }
-
-    public String getStatus() {
-        return status;
-    }
-
-    public void setStatus(String status) {
-        this.status = status;
-    }
-
-    public String getWalletTxNo() {
-        return walletTxNo;
-    }
-
-    public void setWalletTxNo(String walletTxNo) {
-        this.walletTxNo = walletTxNo;
-    }
-
-    public LocalDateTime getSettledAt() {
-        return settledAt;
-    }
-
-    public void setSettledAt(LocalDateTime settledAt) {
-        this.settledAt = settledAt;
-    }
-
-    public LocalDateTime getCreatedAt() {
-        return createdAt;
-    }
-
-    public void setCreatedAt(LocalDateTime createdAt) {
-        this.createdAt = createdAt;
-    }
-
-    public LocalDateTime getUpdatedAt() {
-        return updatedAt;
-    }
-
-    public void setUpdatedAt(LocalDateTime updatedAt) {
-        this.updatedAt = updatedAt;
-    }
 
 }

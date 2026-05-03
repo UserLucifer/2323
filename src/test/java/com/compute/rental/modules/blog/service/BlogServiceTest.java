@@ -87,7 +87,7 @@ class BlogServiceTest {
         var result = blogService.publicPosts(1, 10, null, null, null, null);
 
         assertThat(result.records()).hasSize(1);
-        assertThat(result.records().get(0).get("publish_status")).isEqualTo(BlogPublishStatus.PUBLISHED.value());
+        assertThat(result.records().get(0).publishStatus()).isEqualTo(BlogPublishStatus.PUBLISHED.value());
     }
 
     @Test

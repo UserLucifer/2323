@@ -11,6 +11,9 @@ import com.compute.rental.common.exception.BusinessException;
 import com.compute.rental.common.page.PageResult;
 import com.compute.rental.common.util.DateTimeUtils;
 import com.compute.rental.common.util.MoneyUtils;
+import com.compute.rental.common.util.RedisKeys;
+import com.compute.rental.common.util.RedisLockClient;
+import com.compute.rental.common.util.RedisLockClient.RedisLock;
 import com.compute.rental.modules.recharge.dto.AdminApproveRechargeRequest;
 import com.compute.rental.modules.recharge.dto.AdminRechargeChannelResponse;
 import com.compute.rental.modules.recharge.dto.AdminRejectRechargeRequest;
@@ -33,14 +36,18 @@ import com.compute.rental.modules.wallet.mapper.RechargeOrderMapper;
 import com.compute.rental.modules.wallet.mapper.UserWalletMapper;
 import com.compute.rental.modules.wallet.service.WalletService;
 import java.math.BigDecimal;
+import java.time.Duration;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
+import java.util.function.Supplier;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.util.StringUtils;
 
 @Service
@@ -48,6 +55,7 @@ public class RechargeService {
 
     private static final String CURRENCY_USDT = "USDT";
     private static final String APPROVE_ACTION = "APPROVE";
+    private static final Duration RECHARGE_OPERATION_LOCK_TTL = Duration.ofMinutes(1);
 
     private final RechargeChannelMapper rechargeChannelMapper;
     private final RechargeOrderMapper rechargeOrderMapper;
@@ -55,6 +63,7 @@ public class RechargeService {
     private final AppUserMapper appUserMapper;
     private final SysConfigService sysConfigService;
     private final WalletService walletService;
+    private final RedisLockClient redisLockClient;
 
     public RechargeService(
             RechargeChannelMapper rechargeChannelMapper,
@@ -62,7 +71,8 @@ public class RechargeService {
             UserWalletMapper userWalletMapper,
             AppUserMapper appUserMapper,
             SysConfigService sysConfigService,
-            WalletService walletService
+            WalletService walletService,
+            RedisLockClient redisLockClient
     ) {
         this.rechargeChannelMapper = rechargeChannelMapper;
         this.rechargeOrderMapper = rechargeOrderMapper;
@@ -70,6 +80,7 @@ public class RechargeService {
         this.appUserMapper = appUserMapper;
         this.sysConfigService = sysConfigService;
         this.walletService = walletService;
+        this.redisLockClient = redisLockClient;
     }
 
     public List<RechargeChannelResponse> listEnabledChannels() {
@@ -153,6 +164,10 @@ public class RechargeService {
 
     @Transactional
     public RechargeOrderResponse createOrder(Long userId, CreateRechargeOrderRequest request) {
+        return withRechargeLock(RedisKeys.rechargeCreateLock(userId), () -> doCreateOrder(userId, request));
+    }
+
+    private RechargeOrderResponse doCreateOrder(Long userId, CreateRechargeOrderRequest request) {
         var channel = requireEnabledChannel(request.channelId());
         var amount = MoneyUtils.requireNonNegative(request.applyAmount());
         if (amount.signum() <= 0) {
@@ -215,6 +230,13 @@ public class RechargeService {
 
     @Transactional
     public void cancelUserOrder(Long userId, String rechargeNo) {
+        withRechargeLock(RedisKeys.rechargeOperationLock(rechargeNo, "cancel"), () -> {
+            doCancelUserOrder(userId, rechargeNo);
+            return null;
+        });
+    }
+
+    private void doCancelUserOrder(Long userId, String rechargeNo) {
         var order = requireUserOrder(userId, rechargeNo);
         if (!RechargeOrderStatus.SUBMITTED.name().equals(order.getStatus())) {
             throw new BusinessException(ErrorCode.BUSINESS_ERROR, "仅已提交充值订单可取消");
@@ -251,6 +273,11 @@ public class RechargeService {
 
     @Transactional
     public RechargeOrderResponse approve(String rechargeNo, Long reviewedBy, AdminApproveRechargeRequest request) {
+        return withRechargeLock(RedisKeys.rechargeOperationLock(rechargeNo, "approve"),
+                () -> doApprove(rechargeNo, reviewedBy, request));
+    }
+
+    private RechargeOrderResponse doApprove(String rechargeNo, Long reviewedBy, AdminApproveRechargeRequest request) {
         var order = requireOrder(rechargeNo);
         if (!RechargeOrderStatus.SUBMITTED.name().equals(order.getStatus())) {
             throw new BusinessException(ErrorCode.BUSINESS_ERROR, "仅已提交充值订单可审核通过");
@@ -292,6 +319,11 @@ public class RechargeService {
 
     @Transactional
     public RechargeOrderResponse reject(String rechargeNo, Long reviewedBy, AdminRejectRechargeRequest request) {
+        return withRechargeLock(RedisKeys.rechargeOperationLock(rechargeNo, "reject"),
+                () -> doReject(rechargeNo, reviewedBy, request));
+    }
+
+    private RechargeOrderResponse doReject(String rechargeNo, Long reviewedBy, AdminRejectRechargeRequest request) {
         var order = requireOrder(rechargeNo);
         if (!RechargeOrderStatus.SUBMITTED.name().equals(order.getStatus())) {
             throw new BusinessException(ErrorCode.BUSINESS_ERROR, "仅已提交充值订单可驳回");
@@ -309,6 +341,35 @@ public class RechargeService {
             throw new BusinessException(ErrorCode.CONCURRENT_UPDATE_FAILED, "充值订单状态已变化");
         }
         return getAdminOrder(rechargeNo);
+    }
+
+    private <T> T withRechargeLock(String lockKey, Supplier<T> action) {
+        var lock = redisLockClient.tryLock(lockKey, RECHARGE_OPERATION_LOCK_TTL);
+        if (lock.isEmpty()) {
+            throw new BusinessException(ErrorCode.IDEMPOTENCY_CONFLICT,
+                    "Recharge order is processing, please retry later");
+        }
+        var releaseRegistered = registerUnlockAfterTransaction(lock.get());
+        try {
+            return action.get();
+        } finally {
+            if (!releaseRegistered) {
+                redisLockClient.unlock(lock.get());
+            }
+        }
+    }
+
+    private boolean registerUnlockAfterTransaction(RedisLock lock) {
+        if (!TransactionSynchronizationManager.isSynchronizationActive()) {
+            return false;
+        }
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCompletion(int status) {
+                redisLockClient.unlock(lock);
+            }
+        });
+        return true;
     }
 
     private RechargeChannel requireEnabledChannel(Long channelId) {

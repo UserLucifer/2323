@@ -76,7 +76,8 @@ class DashboardServiceTest {
 
         var result = dashboardService.overview();
 
-        assertThat(result).containsKeys("total_users", "total_recharge_amount", "running_order_count");
-        assertThat(result).doesNotContainKeys("password_hash", "token_ciphertext", "jwt_secret");
+        assertThat(result.totalUsers()).isEqualTo(10L);
+        assertThat(result.runningOrderCount()).isEqualTo(3L);
+        assertThat(result.totalRechargeAmount()).isNotNull();
     }
 }

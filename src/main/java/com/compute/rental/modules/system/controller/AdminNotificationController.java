@@ -2,9 +2,9 @@ package com.compute.rental.modules.system.controller;
 
 import com.compute.rental.common.api.ApiResponse;
 import com.compute.rental.common.page.PageResult;
+import com.compute.rental.modules.system.dto.AdminNotificationResponse;
 import com.compute.rental.modules.system.dto.NotificationBroadcastRequest;
 import com.compute.rental.modules.system.dto.NotificationCreateRequest;
-import com.compute.rental.modules.system.entity.SysNotification;
 import com.compute.rental.modules.system.service.AdminLogService;
 import com.compute.rental.modules.system.service.NotificationService;
 import com.compute.rental.security.CurrentUser;
@@ -37,7 +37,7 @@ public class AdminNotificationController {
 
     @Operation(summary = "Admin notifications")
     @GetMapping
-    public ApiResponse<PageResult<SysNotification>> notifications(
+    public ApiResponse<PageResult<AdminNotificationResponse>> notifications(
             @RequestParam(defaultValue = "1") long pageNo,
             @RequestParam(defaultValue = "10") long pageSize,
             @RequestParam(required = false, name = "user_id") Long userId,
@@ -55,19 +55,19 @@ public class AdminNotificationController {
 
     @Operation(summary = "Admin notification detail")
     @GetMapping("/{id}")
-    public ApiResponse<SysNotification> notification(@PathVariable Long id) {
+    public ApiResponse<AdminNotificationResponse> notification(@PathVariable Long id) {
         return ApiResponse.success(notificationService.getAdminNotification(id));
     }
 
     @Operation(summary = "Create notification")
     @PostMapping
-    public ApiResponse<SysNotification> create(
+    public ApiResponse<AdminNotificationResponse> create(
             @Valid @RequestBody NotificationCreateRequest request,
             HttpServletRequest httpRequest
     ) {
         var admin = CurrentUser.requiredAdmin();
         var notification = notificationService.createForUser(request);
-        adminLogService.log(admin.id(), "CREATE_NOTIFICATION", "sys_notification", notification.getId(),
+        adminLogService.log(admin.id(), "CREATE_NOTIFICATION", "sys_notification", notification.id(),
                 null, null, "userId=" + request.userId(), adminLogService.clientIp(httpRequest));
         return ApiResponse.success(notification);
     }

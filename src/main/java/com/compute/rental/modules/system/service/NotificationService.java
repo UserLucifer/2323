@@ -9,8 +9,10 @@ import com.compute.rental.common.enums.ReadStatus;
 import com.compute.rental.common.exception.BusinessException;
 import com.compute.rental.common.page.PageResult;
 import com.compute.rental.common.util.DateTimeUtils;
+import com.compute.rental.modules.system.dto.AdminNotificationResponse;
 import com.compute.rental.modules.system.dto.NotificationBroadcastRequest;
 import com.compute.rental.modules.system.dto.NotificationCreateRequest;
+import com.compute.rental.modules.system.dto.NotificationResponse;
 import com.compute.rental.modules.system.entity.SysNotification;
 import com.compute.rental.modules.system.mapper.SysNotificationMapper;
 import com.compute.rental.modules.user.entity.AppUser;
@@ -30,7 +32,7 @@ public class NotificationService {
         this.appUserMapper = appUserMapper;
     }
 
-    public PageResult<SysNotification> pageUserNotifications(
+    public PageResult<NotificationResponse> pageUserNotifications(
             Long userId,
             long pageNo,
             long pageSize,
@@ -48,21 +50,22 @@ public class NotificationService {
                 .le(endTime != null, SysNotification::getCreatedAt, endTime)
                 .orderByDesc(SysNotification::getId);
         var result = notificationMapper.selectPage(page, wrapper);
-        return new PageResult<>(result.getRecords(), result.getTotal(), result.getCurrent(), result.getSize());
+        return new PageResult<>(result.getRecords().stream().map(this::notificationResponse).toList(),
+                result.getTotal(), result.getCurrent(), result.getSize());
     }
 
     @Transactional
-    public SysNotification getUserNotification(Long userId, Long id) {
+    public NotificationResponse getUserNotification(Long userId, Long id) {
         var notification = requireUserNotification(userId, id);
         markReadIfUnread(notification);
-        return notificationMapper.selectById(id);
+        return notificationResponse(notificationMapper.selectById(id));
     }
 
     @Transactional
-    public SysNotification markUserNotificationRead(Long userId, Long id) {
+    public NotificationResponse markUserNotificationRead(Long userId, Long id) {
         var notification = requireUserNotification(userId, id);
         markReadIfUnread(notification);
-        return notificationMapper.selectById(id);
+        return notificationResponse(notificationMapper.selectById(id));
     }
 
     @Transactional
@@ -74,7 +77,7 @@ public class NotificationService {
                 .set(SysNotification::getReadAt, DateTimeUtils.now()));
     }
 
-    public PageResult<SysNotification> pageAdminNotifications(
+    public PageResult<AdminNotificationResponse> pageAdminNotifications(
             long pageNo,
             long pageSize,
             Long userId,
@@ -94,20 +97,21 @@ public class NotificationService {
                 .le(endTime != null, SysNotification::getCreatedAt, endTime)
                 .orderByDesc(SysNotification::getId);
         var result = notificationMapper.selectPage(page, wrapper);
-        return new PageResult<>(result.getRecords(), result.getTotal(), result.getCurrent(), result.getSize());
+        return new PageResult<>(result.getRecords().stream().map(this::adminNotificationResponse).toList(),
+                result.getTotal(), result.getCurrent(), result.getSize());
     }
 
-    public SysNotification getAdminNotification(Long id) {
-        return requireNotification(id);
+    public AdminNotificationResponse getAdminNotification(Long id) {
+        return adminNotificationResponse(requireNotification(id));
     }
 
     @Transactional
-    public SysNotification createForUser(NotificationCreateRequest request) {
+    public AdminNotificationResponse createForUser(NotificationCreateRequest request) {
         requireUser(request.userId());
         var notification = buildNotification(request.userId(), request.title(), request.content(),
                 request.type(), request.bizType(), request.bizId());
         notificationMapper.insert(notification);
-        return notification;
+        return adminNotificationResponse(notification);
     }
 
     @Transactional
@@ -151,6 +155,38 @@ public class NotificationService {
         notification.setReadStatus(ReadStatus.UNREAD.value());
         notification.setCreatedAt(now);
         return notification;
+    }
+
+    private NotificationResponse notificationResponse(SysNotification notification) {
+        return new NotificationResponse(
+                notification.getId(),
+                notification.getUserId(),
+                notification.getUserName(),
+                notification.getTitle(),
+                notification.getContent(),
+                notification.getType(),
+                notification.getBizType(),
+                notification.getBizId(),
+                notification.getReadStatus(),
+                notification.getReadAt(),
+                notification.getCreatedAt()
+        );
+    }
+
+    private AdminNotificationResponse adminNotificationResponse(SysNotification notification) {
+        return new AdminNotificationResponse(
+                notification.getId(),
+                notification.getUserId(),
+                notification.getUserName(),
+                notification.getTitle(),
+                notification.getContent(),
+                notification.getType(),
+                notification.getBizType(),
+                notification.getBizId(),
+                notification.getReadStatus(),
+                notification.getReadAt(),
+                notification.getCreatedAt()
+        );
     }
 
     private SysNotification requireUserNotification(Long userId, Long id) {

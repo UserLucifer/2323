@@ -1,9 +1,9 @@
 package com.compute.rental.modules.user.controller;
 
 import com.compute.rental.common.api.ApiResponse;
+import com.compute.rental.modules.user.dto.PushDeviceResponse;
 import com.compute.rental.modules.user.dto.RegisterPushDeviceRequest;
 import com.compute.rental.modules.user.dto.UnregisterPushDeviceRequest;
-import com.compute.rental.modules.user.entity.UserPushDevice;
 import com.compute.rental.modules.user.service.PushDeviceService;
 import com.compute.rental.security.CurrentUser;
 import io.swagger.v3.oas.annotations.Operation;
@@ -29,7 +29,7 @@ public class PushDeviceController {
 
     @Operation(summary = "Register push device")
     @PostMapping("/register")
-    public ApiResponse<UserPushDevice> register(@Valid @RequestBody RegisterPushDeviceRequest request) {
+    public ApiResponse<PushDeviceResponse> register(@Valid @RequestBody RegisterPushDeviceRequest request) {
         var user = CurrentUser.required();
         return ApiResponse.success(pushDeviceService.register(user.id(), request));
     }
@@ -44,7 +44,7 @@ public class PushDeviceController {
 
     @Operation(summary = "Current user push devices")
     @GetMapping
-    public ApiResponse<List<UserPushDevice>> devices() {
+    public ApiResponse<List<PushDeviceResponse>> devices() {
         var user = CurrentUser.required();
         return ApiResponse.success(pushDeviceService.list(user.id()));
     }

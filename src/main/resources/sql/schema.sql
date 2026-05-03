@@ -14,6 +14,7 @@ CREATE TABLE `app_user` (
   `last_login_at`     DATETIME DEFAULT NULL COMMENT '最后登录时间',
   `created_at`        DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
   `updated_at`        DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  `avatar_key`        VARCHAR(64) DEFAULT NULL COMMENT 'avatar key',
   PRIMARY KEY (`id`),
   UNIQUE KEY `uk_user_id` (`user_id`),
   UNIQUE KEY `uk_email` (`email`),

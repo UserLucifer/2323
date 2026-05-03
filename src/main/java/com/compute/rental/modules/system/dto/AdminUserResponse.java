@@ -12,6 +12,8 @@ public record AdminUserResponse(
         String email,
         @Schema(description = "User name")
         String userName,
+        @Schema(description = "Avatar key")
+        String avatarKey,
         @Schema(description = "User status")
         Integer status,
         @Schema(description = "Email verified time")

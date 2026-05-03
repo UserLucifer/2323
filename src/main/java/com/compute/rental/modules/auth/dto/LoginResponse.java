@@ -10,7 +10,8 @@ public record LoginResponse(
             Long id,
             String userId,
             String email,
-            String userName
+            String userName,
+            String avatarKey
     ) {
     }
 }

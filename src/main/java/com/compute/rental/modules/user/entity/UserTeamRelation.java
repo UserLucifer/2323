@@ -1,11 +1,15 @@
 package com.compute.rental.modules.user.entity;
 
+import lombok.Getter;
+import lombok.Setter;
 import java.time.LocalDateTime;
 import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
 
+@Getter
+@Setter
 @TableName("user_team_relation")
 public class UserTeamRelation {
 
@@ -29,61 +33,4 @@ public class UserTeamRelation {
 
     @TableField("created_at")
     private LocalDateTime createdAt;
-
-    public Long getId() {
-        return id;
-    }
-
-    public void setId(Long id) {
-        this.id = id;
-    }
-
-    public Long getAncestorUserId() {
-        return ancestorUserId;
-    }
-
-    public void setAncestorUserId(Long ancestorUserId) {
-        this.ancestorUserId = ancestorUserId;
-    }
-
-    public String getAncestorUserName() {
-        return ancestorUserName;
-    }
-
-    public void setAncestorUserName(String ancestorUserName) {
-        this.ancestorUserName = ancestorUserName;
-    }
-
-    public Long getDescendantUserId() {
-        return descendantUserId;
-    }
-
-    public void setDescendantUserId(Long descendantUserId) {
-        this.descendantUserId = descendantUserId;
-    }
-
-    public String getDescendantUserName() {
-        return descendantUserName;
-    }
-
-    public void setDescendantUserName(String descendantUserName) {
-        this.descendantUserName = descendantUserName;
-    }
-
-    public Integer getLevelDepth() {
-        return levelDepth;
-    }
-
-    public void setLevelDepth(Integer levelDepth) {
-        this.levelDepth = levelDepth;
-    }
-
-    public LocalDateTime getCreatedAt() {
-        return createdAt;
-    }
-
-    public void setCreatedAt(LocalDateTime createdAt) {
-        this.createdAt = createdAt;
-    }
-
 }

@@ -2,13 +2,20 @@ package com.compute.rental.modules.product.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.baomidou.mybatisplus.core.conditions.Wrapper;
 import com.baomidou.mybatisplus.core.metadata.TableInfoHelper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.compute.rental.common.enums.CommonStatus;
+import com.compute.rental.common.page.PageResult;
+import com.compute.rental.common.util.RedisKeys;
 import com.compute.rental.modules.product.dto.ProductQueryRequest;
+import com.compute.rental.modules.product.dto.ProductResponse;
+import com.compute.rental.modules.product.dto.RegionResponse;
 import com.compute.rental.modules.product.entity.AiModel;
 import com.compute.rental.modules.product.entity.GpuModel;
 import com.compute.rental.modules.product.entity.Product;
@@ -49,6 +56,9 @@ class ProductCatalogServiceTest {
     @Mock
     private RentalCycleRuleMapper rentalCycleRuleMapper;
 
+    @Mock
+    private ProductCatalogCacheService productCatalogCacheService;
+
     @InjectMocks
     private ProductCatalogService productCatalogService;
 
@@ -63,6 +73,42 @@ class ProductCatalogServiceTest {
     }
 
     @Test
+    void listEnabledRegionsShouldReturnCachedValueWhenPresent() {
+        var cached = List.of(new RegionResponse(9L, "SG", "Singapore"));
+        when(productCatalogCacheService.get(eq(RedisKeys.catalogRegions()), any())).thenReturn(cached);
+
+        var result = productCatalogService.listEnabledRegions();
+
+        assertThat(result).isEqualTo(cached);
+        verify(regionMapper, never()).selectList(any());
+    }
+
+    @Test
+    @SuppressWarnings({"rawtypes", "unchecked"})
+    void listEnabledRegionsShouldCacheDbResult() {
+        when(regionMapper.selectList(any(Wrapper.class))).thenReturn(List.of(region()));
+
+        var result = productCatalogService.listEnabledRegions();
+
+        assertThat(result).hasSize(1);
+        assertThat(result.get(0).regionCode()).isEqualTo("HK");
+        verify(productCatalogCacheService).put(eq(RedisKeys.catalogRegions()), eq(result));
+    }
+
+    @Test
+    void pageEnabledProductsShouldReturnCachedValueWhenPresent() {
+        var request = new ProductQueryRequest(1, 10, 1L, 2L);
+        var cached = new PageResult<ProductResponse>(List.of(), 0, 1, 10);
+        when(productCatalogCacheService.get(eq(RedisKeys.catalogProductPage(1, 10, 1L, 2L)), any()))
+                .thenReturn(cached);
+
+        var result = productCatalogService.pageEnabledProducts(request);
+
+        assertThat(result).isEqualTo(cached);
+        verify(productMapper, never()).selectPage(any(), any());
+    }
+
+    @Test
     @SuppressWarnings({"rawtypes", "unchecked"})
     void pageEnabledProductsShouldQueryEnabledProductsAndMapDisplayFields() {
         var product = product();
@@ -70,8 +116,8 @@ class ProductCatalogServiceTest {
         page.setRecords(List.of(product));
         page.setTotal(1);
         when(productMapper.selectPage(any(Page.class), any(Wrapper.class))).thenReturn(page);
-        when(regionMapper.selectById(1L)).thenReturn(region());
-        when(gpuModelMapper.selectById(2L)).thenReturn(gpuModel());
+        when(regionMapper.selectBatchIds(any())).thenReturn(List.of(region()));
+        when(gpuModelMapper.selectBatchIds(any())).thenReturn(List.of(gpuModel()));
 
         var result = productCatalogService.pageEnabledProducts(new ProductQueryRequest(1, 10, 1L, 2L));
 
@@ -81,8 +127,9 @@ class ProductCatalogServiceTest {
         assertThat(result.records().get(0).availableStock()).isEqualTo(7);
 
         var wrapperCaptor = ArgumentCaptor.forClass(Wrapper.class);
-        org.mockito.Mockito.verify(productMapper).selectPage(any(Page.class), wrapperCaptor.capture());
+        verify(productMapper).selectPage(any(Page.class), wrapperCaptor.capture());
         assertThat(wrapperCaptor.getValue().getSqlSegment()).contains("status", "region_id", "gpu_model_id");
+        verify(productCatalogCacheService).put(eq(RedisKeys.catalogProductPage(1, 10, 1L, 2L)), eq(result));
     }
 
     @Test
@@ -95,7 +142,7 @@ class ProductCatalogServiceTest {
         assertThat(result).hasSize(1);
         assertThat(result.get(0).modelCode()).isEqualTo("GPT_TEST");
         var wrapperCaptor = ArgumentCaptor.forClass(Wrapper.class);
-        org.mockito.Mockito.verify(aiModelMapper).selectList(wrapperCaptor.capture());
+        verify(aiModelMapper).selectList(wrapperCaptor.capture());
         assertThat(wrapperCaptor.getValue().getSqlSegment()).contains("status", "sort_no");
     }
 
@@ -109,7 +156,7 @@ class ProductCatalogServiceTest {
         assertThat(result).hasSize(1);
         assertThat(result.get(0).cycleCode()).isEqualTo("MONTHLY");
         var wrapperCaptor = ArgumentCaptor.forClass(Wrapper.class);
-        org.mockito.Mockito.verify(rentalCycleRuleMapper).selectList(wrapperCaptor.capture());
+        verify(rentalCycleRuleMapper).selectList(wrapperCaptor.capture());
         assertThat(wrapperCaptor.getValue().getSqlSegment()).contains("status", "sort_no");
     }
 

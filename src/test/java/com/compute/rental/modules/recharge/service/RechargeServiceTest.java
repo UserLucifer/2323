@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -15,11 +16,15 @@ import com.compute.rental.common.enums.ErrorCode;
 import com.compute.rental.common.enums.RechargeOrderStatus;
 import com.compute.rental.common.enums.WalletBusinessType;
 import com.compute.rental.common.exception.BusinessException;
+import com.compute.rental.common.util.RedisKeys;
+import com.compute.rental.common.util.RedisLockClient;
+import com.compute.rental.common.util.RedisLockClient.RedisLock;
 import com.compute.rental.modules.recharge.dto.AdminApproveRechargeRequest;
 import com.compute.rental.modules.recharge.dto.AdminRejectRechargeRequest;
 import com.compute.rental.modules.recharge.dto.CreateRechargeOrderRequest;
 import com.compute.rental.modules.system.service.SysConfigDefaults;
 import com.compute.rental.modules.system.service.SysConfigService;
+import com.compute.rental.modules.user.mapper.AppUserMapper;
 import com.compute.rental.modules.wallet.entity.RechargeChannel;
 import com.compute.rental.modules.wallet.entity.RechargeOrder;
 import com.compute.rental.modules.wallet.entity.UserWallet;
@@ -29,9 +34,11 @@ import com.compute.rental.modules.wallet.mapper.RechargeOrderMapper;
 import com.compute.rental.modules.wallet.mapper.UserWalletMapper;
 import com.compute.rental.modules.wallet.service.WalletService;
 import java.math.BigDecimal;
+import java.util.Optional;
 import org.apache.ibatis.builder.MapperBuilderAssistant;
 import org.apache.ibatis.session.Configuration;
 import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -39,6 +46,8 @@ import org.mockito.Captor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 @ExtendWith(MockitoExtension.class)
 class RechargeServiceTest {
@@ -53,10 +62,16 @@ class RechargeServiceTest {
     private UserWalletMapper userWalletMapper;
 
     @Mock
+    private AppUserMapper appUserMapper;
+
+    @Mock
     private SysConfigService sysConfigService;
 
     @Mock
     private WalletService walletService;
+
+    @Mock
+    private RedisLockClient redisLockClient;
 
     @Captor
     private ArgumentCaptor<RechargeOrder> rechargeOrderCaptor;
@@ -71,6 +86,12 @@ class RechargeServiceTest {
         TableInfoHelper.initTableInfo(new MapperBuilderAssistant(configuration, ""), RechargeOrder.class);
         TableInfoHelper.initTableInfo(new MapperBuilderAssistant(configuration, ""), UserWallet.class);
         TableInfoHelper.initTableInfo(new MapperBuilderAssistant(configuration, ""), WalletTransaction.class);
+    }
+
+    @BeforeEach
+    void setUpRedisLock() {
+        lenient().when(redisLockClient.tryLock(any(), any()))
+                .thenReturn(Optional.of(new RedisLock("test-lock", "test-value")));
     }
 
     @Test
@@ -96,6 +117,25 @@ class RechargeServiceTest {
         assertThat(saved.getApplyAmount()).isEqualByComparingTo("600.00000000");
         assertThat(saved.getExternalTxNo()).isEqualTo("tx001");
         assertThat(response.status()).isEqualTo(RechargeOrderStatus.SUBMITTED.name());
+    }
+
+    @Test
+    void createOrderShouldRejectWhenUserCreateLockExists() {
+        when(redisLockClient.tryLock(eq(RedisKeys.rechargeCreateLock(10L)), any())).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> rechargeService.createOrder(10L, new CreateRechargeOrderRequest(
+                1L,
+                new BigDecimal("600.00000000"),
+                "tx001",
+                "proof.png",
+                "remark"
+        )))
+                .isInstanceOf(BusinessException.class)
+                .extracting("errorCode")
+                .isEqualTo(ErrorCode.IDEMPOTENCY_CONFLICT);
+
+        verify(rechargeChannelMapper, never()).selectById(any());
+        verify(rechargeOrderMapper, never()).insert(any(RechargeOrder.class));
     }
 
     @Test
@@ -158,6 +198,51 @@ class RechargeServiceTest {
     }
 
     @Test
+    void approveShouldRejectWhenRechargeOperationLockExists() {
+        when(redisLockClient.tryLock(eq(RedisKeys.rechargeOperationLock("RC001", "approve")), any()))
+                .thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> rechargeService.approve("RC001", 99L,
+                new AdminApproveRechargeRequest(new BigDecimal("500.00000000"), "ok")))
+                .isInstanceOf(BusinessException.class)
+                .extracting("errorCode")
+                .isEqualTo(ErrorCode.IDEMPOTENCY_CONFLICT);
+
+        verify(rechargeOrderMapper, never()).selectOne(any(Wrapper.class));
+        verify(walletService, never()).credit(any(), any(), any(), any(), any(), any());
+    }
+
+    @Test
+    void approveShouldReleaseLockAfterTransactionCompletion() {
+        var lock = new RedisLock("recharge-lock", "owner-token");
+        when(redisLockClient.tryLock(eq(RedisKeys.rechargeOperationLock("RC001", "approve")), any()))
+                .thenReturn(Optional.of(lock));
+        var submitted = order(RechargeOrderStatus.SUBMITTED);
+        var approved = order(RechargeOrderStatus.APPROVED);
+        approved.setWalletTxNo("WT001");
+        when(rechargeOrderMapper.selectOne(any(Wrapper.class))).thenReturn(submitted, approved);
+        when(rechargeOrderMapper.update(any(), any(Wrapper.class))).thenReturn(1);
+        var walletTx = new WalletTransaction();
+        walletTx.setTxNo("WT001");
+        when(walletService.credit(eq(10L), any(BigDecimal.class), eq(WalletBusinessType.RECHARGE),
+                eq("RC001"), eq("APPROVE"), any())).thenReturn(walletTx);
+
+        TransactionSynchronizationManager.initSynchronization();
+        try {
+            rechargeService.approve("RC001", 99L,
+                    new AdminApproveRechargeRequest(new BigDecimal("500.00000000"), "ok"));
+
+            verify(redisLockClient, never()).unlock(any());
+            var synchronizations = TransactionSynchronizationManager.getSynchronizations();
+            assertThat(synchronizations).hasSize(1);
+            synchronizations.get(0).afterCompletion(TransactionSynchronization.STATUS_COMMITTED);
+            verify(redisLockClient).unlock(lock);
+        } finally {
+            TransactionSynchronizationManager.clearSynchronization();
+        }
+    }
+
+    @Test
     void approveShouldRejectChangedStatusAndNotCreditAgain() {
         when(rechargeOrderMapper.selectOne(any(Wrapper.class))).thenReturn(order(RechargeOrderStatus.APPROVED));
 
@@ -166,6 +251,20 @@ class RechargeServiceTest {
                 .isInstanceOf(BusinessException.class)
                 .extracting("errorCode")
                 .isEqualTo(ErrorCode.BUSINESS_ERROR);
+        verify(walletService, never()).credit(any(), any(), any(), any(), any(), any());
+    }
+
+    @Test
+    void rejectShouldRejectWhenRechargeOperationLockExists() {
+        when(redisLockClient.tryLock(eq(RedisKeys.rechargeOperationLock("RC001", "reject")), any()))
+                .thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> rechargeService.reject("RC001", 99L, new AdminRejectRechargeRequest("bad proof")))
+                .isInstanceOf(BusinessException.class)
+                .extracting("errorCode")
+                .isEqualTo(ErrorCode.IDEMPOTENCY_CONFLICT);
+
+        verify(rechargeOrderMapper, never()).selectOne(any(Wrapper.class));
         verify(walletService, never()).credit(any(), any(), any(), any(), any(), any());
     }
 
@@ -180,6 +279,20 @@ class RechargeServiceTest {
 
         assertThat(response.status()).isEqualTo(RechargeOrderStatus.REJECTED.name());
         verify(walletService, never()).credit(any(), any(), any(), any(), any(), any());
+    }
+
+    @Test
+    void cancelShouldRejectWhenRechargeOperationLockExists() {
+        when(redisLockClient.tryLock(eq(RedisKeys.rechargeOperationLock("RC001", "cancel")), any()))
+                .thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> rechargeService.cancelUserOrder(10L, "RC001"))
+                .isInstanceOf(BusinessException.class)
+                .extracting("errorCode")
+                .isEqualTo(ErrorCode.IDEMPOTENCY_CONFLICT);
+
+        verify(rechargeOrderMapper, never()).selectOne(any(Wrapper.class));
+        verify(rechargeOrderMapper, never()).update(any(), any(Wrapper.class));
     }
 
     @Test

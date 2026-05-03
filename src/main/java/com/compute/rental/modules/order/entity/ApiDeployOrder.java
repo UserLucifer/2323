@@ -1,5 +1,7 @@
 package com.compute.rental.modules.order.entity;
 
+import lombok.Getter;
+import lombok.Setter;
 import java.math.BigDecimal;
 import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableField;
@@ -7,6 +9,8 @@ import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
 import java.time.LocalDateTime;
 
+@Getter
+@Setter
 @TableName("api_deploy_order")
 public class ApiDeployOrder {
 
@@ -57,133 +61,5 @@ public class ApiDeployOrder {
 
     @TableField("updated_at")
     private LocalDateTime updatedAt;
-
-    public Long getId() {
-        return id;
-    }
-
-    public void setId(Long id) {
-        this.id = id;
-    }
-
-    public String getDeployNo() {
-        return deployNo;
-    }
-
-    public void setDeployNo(String deployNo) {
-        this.deployNo = deployNo;
-    }
-
-    public Long getUserId() {
-        return userId;
-    }
-
-    public void setUserId(Long userId) {
-        this.userId = userId;
-    }
-
-    public String getUserName() {
-        return userName;
-    }
-
-    public void setUserName(String userName) {
-        this.userName = userName;
-    }
-
-    public Long getRentalOrderId() {
-        return rentalOrderId;
-    }
-
-    public void setRentalOrderId(Long rentalOrderId) {
-        this.rentalOrderId = rentalOrderId;
-    }
-
-    public Long getApiCredentialId() {
-        return apiCredentialId;
-    }
-
-    public void setApiCredentialId(Long apiCredentialId) {
-        this.apiCredentialId = apiCredentialId;
-    }
-
-    public Long getAiModelId() {
-        return aiModelId;
-    }
-
-    public void setAiModelId(Long aiModelId) {
-        this.aiModelId = aiModelId;
-    }
-
-    public String getModelNameSnapshot() {
-        return modelNameSnapshot;
-    }
-
-    public void setModelNameSnapshot(String modelNameSnapshot) {
-        this.modelNameSnapshot = modelNameSnapshot;
-    }
-
-    public String getCurrency() {
-        return currency;
-    }
-
-    public void setCurrency(String currency) {
-        this.currency = currency;
-    }
-
-    public BigDecimal getDeployFeeAmount() {
-        return deployFeeAmount;
-    }
-
-    public void setDeployFeeAmount(BigDecimal deployFeeAmount) {
-        this.deployFeeAmount = deployFeeAmount;
-    }
-
-    public String getStatus() {
-        return status;
-    }
-
-    public void setStatus(String status) {
-        this.status = status;
-    }
-
-    public String getWalletTxNo() {
-        return walletTxNo;
-    }
-
-    public void setWalletTxNo(String walletTxNo) {
-        this.walletTxNo = walletTxNo;
-    }
-
-    public LocalDateTime getPaidAt() {
-        return paidAt;
-    }
-
-    public void setPaidAt(LocalDateTime paidAt) {
-        this.paidAt = paidAt;
-    }
-
-    public LocalDateTime getCanceledAt() {
-        return canceledAt;
-    }
-
-    public void setCanceledAt(LocalDateTime canceledAt) {
-        this.canceledAt = canceledAt;
-    }
-
-    public LocalDateTime getCreatedAt() {
-        return createdAt;
-    }
-
-    public void setCreatedAt(LocalDateTime createdAt) {
-        this.createdAt = createdAt;
-    }
-
-    public LocalDateTime getUpdatedAt() {
-        return updatedAt;
-    }
-
-    public void setUpdatedAt(LocalDateTime updatedAt) {
-        this.updatedAt = updatedAt;
-    }
 
 }

@@ -8,7 +8,16 @@ import com.compute.rental.common.enums.ErrorCode;
 import com.compute.rental.common.exception.BusinessException;
 import com.compute.rental.common.page.PageResult;
 import com.compute.rental.common.util.DateTimeUtils;
+import com.compute.rental.modules.product.dto.AdminAiModelRequest;
+import com.compute.rental.modules.product.dto.AdminAiModelResponse;
+import com.compute.rental.modules.product.dto.AdminGpuModelRequest;
+import com.compute.rental.modules.product.dto.AdminGpuModelResponse;
+import com.compute.rental.modules.product.dto.AdminProductRequest;
 import com.compute.rental.modules.product.dto.AdminProductResponse;
+import com.compute.rental.modules.product.dto.AdminRegionRequest;
+import com.compute.rental.modules.product.dto.AdminRegionResponse;
+import com.compute.rental.modules.product.dto.AdminRentalCycleRuleRequest;
+import com.compute.rental.modules.product.dto.AdminRentalCycleRuleResponse;
 import com.compute.rental.modules.product.entity.AiModel;
 import com.compute.rental.modules.product.entity.GpuModel;
 import com.compute.rental.modules.product.entity.Product;
@@ -27,6 +36,8 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.util.StringUtils;
 
 @Service
@@ -38,6 +49,7 @@ public class AdminCatalogManagementService {
     private final AiModelMapper aiModelMapper;
     private final RentalCycleRuleMapper rentalCycleRuleMapper;
     private final AdminLogService adminLogService;
+    private final ProductCatalogCacheService productCatalogCacheService;
 
     public AdminCatalogManagementService(
             RegionMapper regionMapper,
@@ -45,7 +57,8 @@ public class AdminCatalogManagementService {
             ProductMapper productMapper,
             AiModelMapper aiModelMapper,
             RentalCycleRuleMapper rentalCycleRuleMapper,
-            AdminLogService adminLogService
+            AdminLogService adminLogService,
+            ProductCatalogCacheService productCatalogCacheService
     ) {
         this.regionMapper = regionMapper;
         this.gpuModelMapper = gpuModelMapper;
@@ -53,9 +66,10 @@ public class AdminCatalogManagementService {
         this.aiModelMapper = aiModelMapper;
         this.rentalCycleRuleMapper = rentalCycleRuleMapper;
         this.adminLogService = adminLogService;
+        this.productCatalogCacheService = productCatalogCacheService;
     }
 
-    public PageResult<Region> pageRegions(long pageNo, long pageSize, String regionCode, Integer status) {
+    public PageResult<AdminRegionResponse> pageRegions(long pageNo, long pageSize, String regionCode, Integer status) {
         var page = new Page<Region>(pageNo, pageSize);
         var wrapper = new LambdaQueryWrapper<Region>()
                 .eq(hasText(regionCode), Region::getRegionCode, regionCode)
@@ -63,43 +77,49 @@ public class AdminCatalogManagementService {
                 .orderByAsc(Region::getSortNo)
                 .orderByDesc(Region::getId);
         var result = regionMapper.selectPage(page, wrapper);
-        return new PageResult<>(result.getRecords(), result.getTotal(), result.getCurrent(), result.getSize());
+        return new PageResult<>(result.getRecords().stream().map(this::toAdminRegionResponse).toList(),
+                result.getTotal(), result.getCurrent(), result.getSize());
     }
 
     @Transactional
-    public Region createRegion(Region request, Long adminId, String ip) {
+    public AdminRegionResponse createRegion(AdminRegionRequest request, Long adminId, String ip) {
+        var region = toRegion(request);
         var now = DateTimeUtils.now();
-        request.setId(null);
-        request.setStatus(defaultStatus(request.getStatus()));
-        request.setCreatedAt(now);
-        request.setUpdatedAt(now);
-        regionMapper.insert(request);
-        log(adminId, "CREATE_REGION", "region", request.getId(), request.getRegionCode(), ip);
-        return request;
+        region.setId(null);
+        region.setStatus(defaultStatus(region.getStatus()));
+        region.setCreatedAt(now);
+        region.setUpdatedAt(now);
+        regionMapper.insert(region);
+        log(adminId, "CREATE_REGION", "region", region.getId(), region.getRegionCode(), ip);
+        evictCatalogCacheAfterCommit();
+        return toAdminRegionResponse(region);
     }
 
     @Transactional
-    public Region updateRegion(Long id, Region request, Long adminId, String ip) {
+    public AdminRegionResponse updateRegion(Long id, AdminRegionRequest request, Long adminId, String ip) {
         requireRegion(id);
-        request.setId(id);
-        request.setUpdatedAt(DateTimeUtils.now());
-        regionMapper.updateById(request);
-        log(adminId, "UPDATE_REGION", "region", id, request.getRegionCode(), ip);
-        return requireRegion(id);
+        var region = toRegion(request);
+        region.setId(id);
+        region.setUpdatedAt(DateTimeUtils.now());
+        regionMapper.updateById(region);
+        log(adminId, "UPDATE_REGION", "region", id, region.getRegionCode(), ip);
+        evictCatalogCacheAfterCommit();
+        return toAdminRegionResponse(requireRegion(id));
     }
 
     @Transactional
-    public Region setRegionStatus(Long id, Integer status, Long adminId, String ip) {
+    public AdminRegionResponse setRegionStatus(Long id, Integer status, Long adminId, String ip) {
         requireRegion(id);
         regionMapper.update(null, new LambdaUpdateWrapper<Region>()
                 .eq(Region::getId, id)
                 .set(Region::getStatus, status)
                 .set(Region::getUpdatedAt, DateTimeUtils.now()));
         log(adminId, statusAction("REGION", status), "region", id, "status=" + status, ip);
-        return requireRegion(id);
+        evictCatalogCacheAfterCommit();
+        return toAdminRegionResponse(requireRegion(id));
     }
 
-    public PageResult<GpuModel> pageGpuModels(long pageNo, long pageSize, String modelCode, Integer status) {
+    public PageResult<AdminGpuModelResponse> pageGpuModels(long pageNo, long pageSize, String modelCode, Integer status) {
         var page = new Page<GpuModel>(pageNo, pageSize);
         var wrapper = new LambdaQueryWrapper<GpuModel>()
                 .eq(hasText(modelCode), GpuModel::getModelCode, modelCode)
@@ -107,40 +127,46 @@ public class AdminCatalogManagementService {
                 .orderByAsc(GpuModel::getSortNo)
                 .orderByDesc(GpuModel::getId);
         var result = gpuModelMapper.selectPage(page, wrapper);
-        return new PageResult<>(result.getRecords(), result.getTotal(), result.getCurrent(), result.getSize());
+        return new PageResult<>(result.getRecords().stream().map(this::toAdminGpuModelResponse).toList(),
+                result.getTotal(), result.getCurrent(), result.getSize());
     }
 
     @Transactional
-    public GpuModel createGpuModel(GpuModel request, Long adminId, String ip) {
+    public AdminGpuModelResponse createGpuModel(AdminGpuModelRequest request, Long adminId, String ip) {
+        var gpuModel = toGpuModel(request);
         var now = DateTimeUtils.now();
-        request.setId(null);
-        request.setStatus(defaultStatus(request.getStatus()));
-        request.setCreatedAt(now);
-        request.setUpdatedAt(now);
-        gpuModelMapper.insert(request);
-        log(adminId, "CREATE_GPU_MODEL", "gpu_model", request.getId(), request.getModelCode(), ip);
-        return request;
+        gpuModel.setId(null);
+        gpuModel.setStatus(defaultStatus(gpuModel.getStatus()));
+        gpuModel.setCreatedAt(now);
+        gpuModel.setUpdatedAt(now);
+        gpuModelMapper.insert(gpuModel);
+        log(adminId, "CREATE_GPU_MODEL", "gpu_model", gpuModel.getId(), gpuModel.getModelCode(), ip);
+        evictCatalogCacheAfterCommit();
+        return toAdminGpuModelResponse(gpuModel);
     }
 
     @Transactional
-    public GpuModel updateGpuModel(Long id, GpuModel request, Long adminId, String ip) {
+    public AdminGpuModelResponse updateGpuModel(Long id, AdminGpuModelRequest request, Long adminId, String ip) {
         requireGpuModel(id);
-        request.setId(id);
-        request.setUpdatedAt(DateTimeUtils.now());
-        gpuModelMapper.updateById(request);
-        log(adminId, "UPDATE_GPU_MODEL", "gpu_model", id, request.getModelCode(), ip);
-        return requireGpuModel(id);
+        var gpuModel = toGpuModel(request);
+        gpuModel.setId(id);
+        gpuModel.setUpdatedAt(DateTimeUtils.now());
+        gpuModelMapper.updateById(gpuModel);
+        log(adminId, "UPDATE_GPU_MODEL", "gpu_model", id, gpuModel.getModelCode(), ip);
+        evictCatalogCacheAfterCommit();
+        return toAdminGpuModelResponse(requireGpuModel(id));
     }
 
     @Transactional
-    public GpuModel setGpuModelStatus(Long id, Integer status, Long adminId, String ip) {
+    public AdminGpuModelResponse setGpuModelStatus(Long id, Integer status, Long adminId, String ip) {
         requireGpuModel(id);
         gpuModelMapper.update(null, new LambdaUpdateWrapper<GpuModel>()
                 .eq(GpuModel::getId, id)
                 .set(GpuModel::getStatus, status)
                 .set(GpuModel::getUpdatedAt, DateTimeUtils.now()));
         log(adminId, statusAction("GPU_MODEL", status), "gpu_model", id, "status=" + status, ip);
-        return requireGpuModel(id);
+        evictCatalogCacheAfterCommit();
+        return toAdminGpuModelResponse(requireGpuModel(id));
     }
 
     public PageResult<AdminProductResponse> pageProducts(long pageNo, long pageSize, String productCode,
@@ -173,41 +199,46 @@ public class AdminCatalogManagementService {
     }
 
     @Transactional
-    public Product createProduct(Product request, Long adminId, String ip) {
+    public AdminProductResponse createProduct(AdminProductRequest request, Long adminId, String ip) {
+        var product = toProduct(request);
         var now = DateTimeUtils.now();
-        request.setId(null);
-        request.setStatus(defaultStatus(request.getStatus()));
-        request.setVersionNo(request.getVersionNo() == null ? 0 : request.getVersionNo());
-        request.setCreatedAt(now);
-        request.setUpdatedAt(now);
-        productMapper.insert(request);
-        log(adminId, "CREATE_PRODUCT", "product", request.getId(), request.getProductCode(), ip);
-        return request;
+        product.setId(null);
+        product.setStatus(defaultStatus(product.getStatus()));
+        product.setVersionNo(product.getVersionNo() == null ? 0 : product.getVersionNo());
+        product.setCreatedAt(now);
+        product.setUpdatedAt(now);
+        productMapper.insert(product);
+        log(adminId, "CREATE_PRODUCT", "product", product.getId(), product.getProductCode(), ip);
+        evictCatalogCacheAfterCommit();
+        return getProduct(product.getProductCode());
     }
 
     @Transactional
-    public Product updateProduct(String productCode, Product request, Long adminId, String ip) {
+    public AdminProductResponse updateProduct(String productCode, AdminProductRequest request, Long adminId, String ip) {
         var existing = requireProduct(productCode);
-        request.setId(existing.getId());
-        request.setProductCode(productCode);
-        request.setUpdatedAt(DateTimeUtils.now());
-        productMapper.updateById(request);
+        var product = toProduct(request);
+        product.setId(existing.getId());
+        product.setProductCode(productCode);
+        product.setUpdatedAt(DateTimeUtils.now());
+        productMapper.updateById(product);
         log(adminId, "UPDATE_PRODUCT", "product", existing.getId(), productCode, ip);
-        return requireProduct(productCode);
+        evictCatalogCacheAfterCommit();
+        return getProduct(productCode);
     }
 
     @Transactional
-    public Product setProductStatus(String productCode, Integer status, Long adminId, String ip) {
+    public AdminProductResponse setProductStatus(String productCode, Integer status, Long adminId, String ip) {
         var product = requireProduct(productCode);
         productMapper.update(null, new LambdaUpdateWrapper<Product>()
                 .eq(Product::getId, product.getId())
                 .set(Product::getStatus, status)
                 .set(Product::getUpdatedAt, DateTimeUtils.now()));
         log(adminId, statusAction("PRODUCT", status), "product", product.getId(), "status=" + status, ip);
-        return requireProduct(productCode);
+        evictCatalogCacheAfterCommit();
+        return getProduct(productCode);
     }
 
-    public PageResult<AiModel> pageAiModels(long pageNo, long pageSize, String modelCode, Integer status) {
+    public PageResult<AdminAiModelResponse> pageAiModels(long pageNo, long pageSize, String modelCode, Integer status) {
         var page = new Page<AiModel>(pageNo, pageSize);
         var wrapper = new LambdaQueryWrapper<AiModel>()
                 .eq(hasText(modelCode), AiModel::getModelCode, modelCode)
@@ -215,44 +246,50 @@ public class AdminCatalogManagementService {
                 .orderByAsc(AiModel::getSortNo)
                 .orderByDesc(AiModel::getId);
         var result = aiModelMapper.selectPage(page, wrapper);
-        return new PageResult<>(result.getRecords(), result.getTotal(), result.getCurrent(), result.getSize());
+        return new PageResult<>(result.getRecords().stream().map(this::toAdminAiModelResponse).toList(),
+                result.getTotal(), result.getCurrent(), result.getSize());
     }
 
     @Transactional
-    public AiModel createAiModel(AiModel request, Long adminId, String ip) {
+    public AdminAiModelResponse createAiModel(AdminAiModelRequest request, Long adminId, String ip) {
+        var aiModel = toAiModel(request);
         var now = DateTimeUtils.now();
-        request.setId(null);
-        request.setStatus(defaultStatus(request.getStatus()));
-        request.setCreatedAt(now);
-        request.setUpdatedAt(now);
-        aiModelMapper.insert(request);
-        log(adminId, "CREATE_AI_MODEL", "ai_model", request.getId(), request.getModelCode(), ip);
-        return request;
+        aiModel.setId(null);
+        aiModel.setStatus(defaultStatus(aiModel.getStatus()));
+        aiModel.setCreatedAt(now);
+        aiModel.setUpdatedAt(now);
+        aiModelMapper.insert(aiModel);
+        log(adminId, "CREATE_AI_MODEL", "ai_model", aiModel.getId(), aiModel.getModelCode(), ip);
+        evictCatalogCacheAfterCommit();
+        return toAdminAiModelResponse(aiModel);
     }
 
     @Transactional
-    public AiModel updateAiModel(String modelCode, AiModel request, Long adminId, String ip) {
+    public AdminAiModelResponse updateAiModel(String modelCode, AdminAiModelRequest request, Long adminId, String ip) {
         var existing = requireAiModel(modelCode);
-        request.setId(existing.getId());
-        request.setModelCode(modelCode);
-        request.setUpdatedAt(DateTimeUtils.now());
-        aiModelMapper.updateById(request);
+        var aiModel = toAiModel(request);
+        aiModel.setId(existing.getId());
+        aiModel.setModelCode(modelCode);
+        aiModel.setUpdatedAt(DateTimeUtils.now());
+        aiModelMapper.updateById(aiModel);
         log(adminId, "UPDATE_AI_MODEL", "ai_model", existing.getId(), modelCode, ip);
-        return requireAiModel(modelCode);
+        evictCatalogCacheAfterCommit();
+        return toAdminAiModelResponse(requireAiModel(modelCode));
     }
 
     @Transactional
-    public AiModel setAiModelStatus(String modelCode, Integer status, Long adminId, String ip) {
+    public AdminAiModelResponse setAiModelStatus(String modelCode, Integer status, Long adminId, String ip) {
         var model = requireAiModel(modelCode);
         aiModelMapper.update(null, new LambdaUpdateWrapper<AiModel>()
                 .eq(AiModel::getId, model.getId())
                 .set(AiModel::getStatus, status)
                 .set(AiModel::getUpdatedAt, DateTimeUtils.now()));
         log(adminId, statusAction("AI_MODEL", status), "ai_model", model.getId(), "status=" + status, ip);
-        return requireAiModel(modelCode);
+        evictCatalogCacheAfterCommit();
+        return toAdminAiModelResponse(requireAiModel(modelCode));
     }
 
-    public PageResult<RentalCycleRule> pageCycleRules(long pageNo, long pageSize, String cycleCode, Integer status) {
+    public PageResult<AdminRentalCycleRuleResponse> pageCycleRules(long pageNo, long pageSize, String cycleCode, Integer status) {
         var page = new Page<RentalCycleRule>(pageNo, pageSize);
         var wrapper = new LambdaQueryWrapper<RentalCycleRule>()
                 .eq(hasText(cycleCode), RentalCycleRule::getCycleCode, cycleCode)
@@ -260,41 +297,47 @@ public class AdminCatalogManagementService {
                 .orderByAsc(RentalCycleRule::getSortNo)
                 .orderByDesc(RentalCycleRule::getId);
         var result = rentalCycleRuleMapper.selectPage(page, wrapper);
-        return new PageResult<>(result.getRecords(), result.getTotal(), result.getCurrent(), result.getSize());
+        return new PageResult<>(result.getRecords().stream().map(this::toAdminRentalCycleRuleResponse).toList(),
+                result.getTotal(), result.getCurrent(), result.getSize());
     }
 
     @Transactional
-    public RentalCycleRule createCycleRule(RentalCycleRule request, Long adminId, String ip) {
+    public AdminRentalCycleRuleResponse createCycleRule(AdminRentalCycleRuleRequest request, Long adminId, String ip) {
+        var rule = toRentalCycleRule(request);
         var now = DateTimeUtils.now();
-        request.setId(null);
-        request.setStatus(defaultStatus(request.getStatus()));
-        request.setCreatedAt(now);
-        request.setUpdatedAt(now);
-        rentalCycleRuleMapper.insert(request);
-        log(adminId, "CREATE_RENTAL_CYCLE_RULE", "rental_cycle_rule", request.getId(), request.getCycleCode(), ip);
-        return request;
+        rule.setId(null);
+        rule.setStatus(defaultStatus(rule.getStatus()));
+        rule.setCreatedAt(now);
+        rule.setUpdatedAt(now);
+        rentalCycleRuleMapper.insert(rule);
+        log(adminId, "CREATE_RENTAL_CYCLE_RULE", "rental_cycle_rule", rule.getId(), rule.getCycleCode(), ip);
+        evictCatalogCacheAfterCommit();
+        return toAdminRentalCycleRuleResponse(rule);
     }
 
     @Transactional
-    public RentalCycleRule updateCycleRule(String cycleCode, RentalCycleRule request, Long adminId, String ip) {
+    public AdminRentalCycleRuleResponse updateCycleRule(String cycleCode, AdminRentalCycleRuleRequest request, Long adminId, String ip) {
         var existing = requireCycleRule(cycleCode);
-        request.setId(existing.getId());
-        request.setCycleCode(cycleCode);
-        request.setUpdatedAt(DateTimeUtils.now());
-        rentalCycleRuleMapper.updateById(request);
+        var rule = toRentalCycleRule(request);
+        rule.setId(existing.getId());
+        rule.setCycleCode(cycleCode);
+        rule.setUpdatedAt(DateTimeUtils.now());
+        rentalCycleRuleMapper.updateById(rule);
         log(adminId, "UPDATE_RENTAL_CYCLE_RULE", "rental_cycle_rule", existing.getId(), cycleCode, ip);
-        return requireCycleRule(cycleCode);
+        evictCatalogCacheAfterCommit();
+        return toAdminRentalCycleRuleResponse(requireCycleRule(cycleCode));
     }
 
     @Transactional
-    public RentalCycleRule setCycleRuleStatus(String cycleCode, Integer status, Long adminId, String ip) {
+    public AdminRentalCycleRuleResponse setCycleRuleStatus(String cycleCode, Integer status, Long adminId, String ip) {
         var rule = requireCycleRule(cycleCode);
         rentalCycleRuleMapper.update(null, new LambdaUpdateWrapper<RentalCycleRule>()
                 .eq(RentalCycleRule::getId, rule.getId())
                 .set(RentalCycleRule::getStatus, status)
                 .set(RentalCycleRule::getUpdatedAt, DateTimeUtils.now()));
         log(adminId, statusAction("RENTAL_CYCLE_RULE", status), "rental_cycle_rule", rule.getId(), "status=" + status, ip);
-        return requireCycleRule(cycleCode);
+        evictCatalogCacheAfterCommit();
+        return toAdminRentalCycleRuleResponse(requireCycleRule(cycleCode));
     }
 
     private Region requireRegion(Long id) {
@@ -367,6 +410,82 @@ public class AdminCatalogManagementService {
                 .collect(Collectors.toMap(GpuModel::getId, Function.identity()));
     }
 
+    private Region toRegion(AdminRegionRequest request) {
+        var region = new Region();
+        region.setRegionCode(request.regionCode());
+        region.setRegionName(request.regionName());
+        region.setSortNo(request.sortNo());
+        region.setStatus(request.status());
+        return region;
+    }
+
+    private GpuModel toGpuModel(AdminGpuModelRequest request) {
+        var gpuModel = new GpuModel();
+        gpuModel.setModelCode(request.modelCode());
+        gpuModel.setModelName(request.modelName());
+        gpuModel.setSortNo(request.sortNo());
+        gpuModel.setStatus(request.status());
+        return gpuModel;
+    }
+
+    private Product toProduct(AdminProductRequest request) {
+        var product = new Product();
+        product.setProductCode(request.productCode());
+        product.setProductName(request.productName());
+        product.setMachineCode(request.machineCode());
+        product.setMachineAlias(request.machineAlias());
+        product.setRegionId(request.regionId());
+        product.setGpuModelId(request.gpuModelId());
+        product.setGpuMemoryGb(request.gpuMemoryGb());
+        product.setGpuPowerTops(request.gpuPowerTops());
+        product.setRentPrice(request.rentPrice());
+        product.setTokenOutputPerMinute(request.tokenOutputPerMinute());
+        product.setTokenOutputPerDay(request.tokenOutputPerDay());
+        product.setRentableUntil(request.rentableUntil());
+        product.setTotalStock(request.totalStock());
+        product.setAvailableStock(request.availableStock());
+        product.setRentedStock(request.rentedStock());
+        product.setCpuModel(request.cpuModel());
+        product.setCpuCores(request.cpuCores());
+        product.setMemoryGb(request.memoryGb());
+        product.setSystemDiskGb(request.systemDiskGb());
+        product.setDataDiskGb(request.dataDiskGb());
+        product.setMaxExpandDiskGb(request.maxExpandDiskGb());
+        product.setDriverVersion(request.driverVersion());
+        product.setCudaVersion(request.cudaVersion());
+        product.setHasCacheOptimization(request.hasCacheOptimization());
+        product.setStatus(request.status());
+        product.setSortNo(request.sortNo());
+        product.setVersionNo(request.versionNo());
+        return product;
+    }
+
+    private AiModel toAiModel(AdminAiModelRequest request) {
+        var aiModel = new AiModel();
+        aiModel.setModelCode(request.modelCode());
+        aiModel.setModelName(request.modelName());
+        aiModel.setVendorName(request.vendorName());
+        aiModel.setLogoUrl(request.logoUrl());
+        aiModel.setMonthlyTokenConsumptionTrillion(request.monthlyTokenConsumptionTrillion());
+        aiModel.setTokenUnitPrice(request.tokenUnitPrice());
+        aiModel.setDeployTechFee(request.deployTechFee());
+        aiModel.setStatus(request.status());
+        aiModel.setSortNo(request.sortNo());
+        return aiModel;
+    }
+
+    private RentalCycleRule toRentalCycleRule(AdminRentalCycleRuleRequest request) {
+        var rule = new RentalCycleRule();
+        rule.setCycleCode(request.cycleCode());
+        rule.setCycleName(request.cycleName());
+        rule.setCycleDays(request.cycleDays());
+        rule.setYieldMultiplier(request.yieldMultiplier());
+        rule.setEarlyPenaltyRate(request.earlyPenaltyRate());
+        rule.setStatus(request.status());
+        rule.setSortNo(request.sortNo());
+        return rule;
+    }
+
     private AdminProductResponse toAdminProductResponse(Product product, Map<Long, Region> regionMap,
                                                        Map<Long, GpuModel> gpuModelMap) {
         var region = regionMap.get(product.getRegionId());
@@ -407,6 +526,62 @@ public class AdminCatalogManagementService {
         );
     }
 
+    private AdminRegionResponse toAdminRegionResponse(Region region) {
+        return new AdminRegionResponse(
+                region.getId(),
+                region.getRegionCode(),
+                region.getRegionName(),
+                region.getSortNo(),
+                region.getStatus(),
+                region.getCreatedAt(),
+                region.getUpdatedAt()
+        );
+    }
+
+    private AdminGpuModelResponse toAdminGpuModelResponse(GpuModel gpuModel) {
+        return new AdminGpuModelResponse(
+                gpuModel.getId(),
+                gpuModel.getModelCode(),
+                gpuModel.getModelName(),
+                gpuModel.getSortNo(),
+                gpuModel.getStatus(),
+                gpuModel.getCreatedAt(),
+                gpuModel.getUpdatedAt()
+        );
+    }
+
+    private AdminAiModelResponse toAdminAiModelResponse(AiModel aiModel) {
+        return new AdminAiModelResponse(
+                aiModel.getId(),
+                aiModel.getModelCode(),
+                aiModel.getModelName(),
+                aiModel.getVendorName(),
+                aiModel.getLogoUrl(),
+                aiModel.getMonthlyTokenConsumptionTrillion(),
+                aiModel.getTokenUnitPrice(),
+                aiModel.getDeployTechFee(),
+                aiModel.getStatus(),
+                aiModel.getSortNo(),
+                aiModel.getCreatedAt(),
+                aiModel.getUpdatedAt()
+        );
+    }
+
+    private AdminRentalCycleRuleResponse toAdminRentalCycleRuleResponse(RentalCycleRule rule) {
+        return new AdminRentalCycleRuleResponse(
+                rule.getId(),
+                rule.getCycleCode(),
+                rule.getCycleName(),
+                rule.getCycleDays(),
+                rule.getYieldMultiplier(),
+                rule.getEarlyPenaltyRate(),
+                rule.getStatus(),
+                rule.getSortNo(),
+                rule.getCreatedAt(),
+                rule.getUpdatedAt()
+        );
+    }
+
     private Integer defaultStatus(Integer status) {
         return status == null ? CommonStatus.ENABLED.value() : status;
     }
@@ -417,6 +592,19 @@ public class AdminCatalogManagementService {
 
     private void log(Long adminId, String action, String table, Long targetId, String remark, String ip) {
         adminLogService.log(adminId, action, table, targetId, null, null, remark, ip);
+    }
+
+    private void evictCatalogCacheAfterCommit() {
+        if (!TransactionSynchronizationManager.isSynchronizationActive()) {
+            productCatalogCacheService.evictCatalog();
+            return;
+        }
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                productCatalogCacheService.evictCatalog();
+            }
+        });
     }
 
     private boolean hasText(String value) {

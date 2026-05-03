@@ -6,8 +6,8 @@ import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.compute.rental.modules.system.dto.AdminNotificationResponse;
 import com.compute.rental.modules.system.dto.NotificationCreateRequest;
-import com.compute.rental.modules.system.entity.SysNotification;
 import com.compute.rental.modules.system.service.AdminLogService;
 import com.compute.rental.modules.system.service.NotificationService;
 import com.compute.rental.security.IdentityType;
@@ -49,9 +49,19 @@ class AdminNotificationControllerTest {
     @Test
     void createNotificationWritesAdminLog() {
         var request = new NotificationCreateRequest(10L, "title", "content", "SYSTEM", null, null);
-        var notification = new SysNotification();
-        notification.setId(100L);
-        notification.setUserId(10L);
+        var notification = new AdminNotificationResponse(
+                100L,
+                10L,
+                null,
+                "title",
+                "content",
+                "SYSTEM",
+                null,
+                null,
+                0,
+                null,
+                null
+        );
         when(notificationService.createForUser(request)).thenReturn(notification);
         when(adminLogService.clientIp(httpServletRequest)).thenReturn("127.0.0.1");
 
